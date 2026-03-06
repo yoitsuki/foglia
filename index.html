@@ -967,8 +967,9 @@
                   <button onClick={() => setFontModal(true)} className="flex flex-col items-center py-2 text-[10px] font-bold text-[var(--text-muted)] md:hover:bg-white/40 md:hover:text-[var(--primary-dark)] rounded-2xl transition-all"><Type size={18} className="mb-1"/>フォント</button>
                   <button onClick={() => setIsSettingsOpen(true)} className="flex flex-col items-center py-2 text-[10px] font-bold text-[var(--text-muted)] md:hover:bg-white/40 md:hover:text-[var(--primary-dark)] rounded-2xl transition-all"><Settings size={18} className="mb-1"/>設定</button>
                 </div>
-                <div className="text-center mt-2 text-[10px] text-[var(--text-muted)] opacity-50 font-bold">
-                  &copy; {new Date().getFullYear()} yoitsuki
+                <div className="text-center mt-2 text-[10px] text-[var(--text-muted)] opacity-50 font-bold flex flex-col items-center">
+                  <div className="text-[8px] font-normal mb-0.5 tracking-wider">v0.9.1</div>
+                  <div>&copy; {new Date().getFullYear()} yoitsuki</div>
                 </div>
               </div>
             </div>
@@ -979,7 +980,7 @@
                 <div className="flex items-center gap-2 overflow-hidden flex-1">
                   <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 bg-[var(--sidebar-bg)] rounded-full text-[var(--primary-dark)] shrink-0"><Menu size={24}/></button>
                   <div className="text-lg font-bold truncate text-[var(--text-main)]">
-                    {selectedFolderId === 'root' ? 'HOME' : items.find(i => i.id === selectedFolderId)?.title || '...'}
+                    メモ一覧
                   </div>
                 </div>
 
@@ -1008,8 +1009,11 @@
                 <div className="max-w-4xl mx-auto pb-24">
                   {/* Memo List Title & New Button */}
                   <div className="flex justify-between items-center mb-8 gap-4">
-                    <h2 className="text-xl sm:text-2xl font-bold flex gap-2 items-center text-[var(--text-main)]"><FileText className="text-[var(--primary-dark)]"/>メモ一覧</h2>
-                    <button onClick={handleAddMemo} className="bg-[var(--primary)] text-white px-4 sm:px-5 py-2 sm:py-3 rounded-full font-bold shadow-md md:hover:shadow-lg transition-all active:scale-95 flex items-center gap-1.5 text-sm sm:text-base whitespace-nowrap">
+                    <h2 className="text-xl sm:text-2xl font-bold flex gap-2 items-center text-[var(--text-main)] min-w-0">
+                      <FolderOpen className="text-[var(--primary-dark)] shrink-0" size={28}/>
+                      <span className="truncate">{selectedFolderId === 'root' ? 'HOME' : items.find(i => i.id === selectedFolderId)?.title || '...'}</span>
+                    </h2>
+                    <button onClick={handleAddMemo} className="bg-[var(--primary)] text-white px-4 sm:px-5 py-2 sm:py-3 rounded-full font-bold shadow-md md:hover:shadow-lg transition-all active:scale-95 flex items-center gap-1.5 text-sm sm:text-base whitespace-nowrap shrink-0">
                       <Plus size={20} className="shrink-0" />新規メモ
                     </button>
                   </div>
