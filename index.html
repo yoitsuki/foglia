@@ -1,0 +1,1332 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Folder, FolderOpen, FileText, Plus, Edit2, Trash2, 
+  Menu, X, ChevronRight, ChevronDown, ChevronLeft,
+  Copy, Check, Palette, Home, Save, Settings, Monitor,
+  ArrowUp, ArrowDown, Edit3, Type, Database, Upload, Download, RefreshCw, Clock, Link,
+  ArrowRight, FolderInput, HelpCircle, Share2, Star, GripVertical, ArrowUpDown, ArrowLeft, AlertTriangle, Leaf
+} from 'lucide-react';
+
+// --- Firebase Initialization (Legacy dummy for preview stability) ---
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+if (firebaseConfig) {
+  try {
+    const app = initializeApp(firebaseConfig);
+    getAuth(app);
+    getFirestore(app);
+  } catch (e) { console.error("Firebase init failed", e); }
+}
+
+// --- Theme & Font Definitions ---
+const themes = [
+  { id: 'paleblue', name: 'ペールブルー (標準)', color: '#bae6fd' },
+  { id: 'pink', name: 'マカロンピンク', color: '#fbcfe8' },
+  { id: 'red', name: 'ストロベリーレッド', color: '#fca5a5' },
+  { id: 'green', name: 'ミントグリーン', color: '#86efac' },
+  { id: 'dark', name: 'ナイトダーク', color: '#1e293b' },
+];
+
+const fonts = [
+  { id: 'notoSans', name: 'Noto Sans (標準ゴシック)', family: "'Noto Sans JP', sans-serif" },
+  { id: 'notoSerif', name: 'Noto Serif (明朝体)', family: "'Noto Serif JP', serif" },
+  { id: 'mplus', name: 'M PLUS Rounded (丸ゴシック)', family: "'M PLUS Rounded 1c', sans-serif" },
+  { id: 'kaisei', name: 'Kaisei Decol (レトロ)', family: "'Kaisei Decol', serif" },
+  { id: 'zenKaku', name: 'Zen Kaku (角ゴシック)', family: "'Zen Kaku Gothic New', sans-serif" },
+];
+
+const themeCSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=Kaisei+Decol&family=M+PLUS+Rounded+1c:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@400;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+
+  :root, [data-theme="paleblue"] {
+    --bg-color: #f0f9ff; 
+    --sidebar-bg: #e0f2fe; 
+    --sidebar-hover: #bae6fd;
+    --sidebar-active: #7dd3fc;
+    --sidebar-text: #0f172a;
+    --card-bg: #ffffff;
+    --text-main: #334155;
+    --text-muted: #64748b;
+    --primary: #7dd3fc;
+    --primary-dark: #38bdf8;
+    --primary-text: #0369a1;
+    --border: #bae6fd;
+    --shadow-color: rgba(125, 211, 252, 0.3);
+    --btn-bg: #e0f2fe;
+    --modal-close: #64748b;
+  }
+
+  [data-theme="dark"] {
+    --bg-color: #0f172a;
+    --sidebar-bg: #1e293b;
+    --sidebar-hover: #334155;
+    --sidebar-active: #38bdf8;
+    --sidebar-text: #f1f5f9;
+    --card-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --primary: #38bdf8;
+    --primary-dark: #7dd3fc;
+    --primary-text: #e0f2fe;
+    --border: #334155;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --btn-bg: #334155;
+    --modal-close: #f1f5f9;
+  }
+
+  [data-theme="pink"] {
+    --bg-color: #fdf2f8; --sidebar-bg: #fce7f3; --sidebar-hover: #fbcfe8; --sidebar-active: #f9a8d4;
+    --sidebar-text: #4a044e; --card-bg: #ffffff; --text-main: #475569; --text-muted: #94a3b8;
+    --primary: #f9a8d4; --primary-dark: #f472b6; --primary-text: #9d174d; --border: #fbcfe8;
+    --shadow-color: rgba(249, 168, 212, 0.25); --btn-bg: #fce7f3; --modal-close: #4a044e;
+  }
+
+  [data-theme="red"] {
+    --bg-color: #fef2f2; --sidebar-bg: #fee2e2; --sidebar-hover: #fecaca; --sidebar-active: #fca5a5;
+    --sidebar-text: #450a0a; --card-bg: #ffffff; --text-main: #450a0a; --text-muted: #991b1b;
+    --primary: #fca5a5; --primary-dark: #ef4444; --primary-text: #7f1d1d; --border: #fecaca;
+    --shadow-color: rgba(248, 113, 113, 0.2); --btn-bg: #fee2e2; --modal-close: #450a0a;
+  }
+
+  [data-theme="green"] {
+    --bg-color: #f0fdf4; --sidebar-bg: #dcfce7; --sidebar-hover: #bbf7d0; --sidebar-active: #86efac;
+    --sidebar-text: #052e16; --card-bg: #ffffff; --text-main: #14532d; --text-muted: #166534;
+    --primary: #86efac; --primary-dark: #4ade80; --primary-text: #14532d; --border: #bbf7d0;
+    --shadow-color: rgba(134, 239, 172, 0.25); --btn-bg: #dcfce7; --modal-close: #052e16;
+  }
+
+  [data-font="notoSans"] { --font-family: 'Noto Sans JP', sans-serif; }
+  [data-font="notoSerif"] { --font-family: 'Noto Serif JP', serif; }
+  [data-font="mplus"] { --font-family: 'M PLUS Rounded 1c', sans-serif; }
+  [data-font="kaisei"] { --font-family: 'Kaisei Decol', serif; }
+  [data-font="zenKaku"] { --font-family: 'Zen Kaku Gothic New', sans-serif; }
+
+  body { font-family: var(--font-family, 'Noto Sans JP', sans-serif); background-color: var(--bg-color); color: var(--text-main); transition: background-color 0.3s ease; }
+  .toast-anim { animation: toastIn 3s ease-in-out forwards; }
+  @keyframes toastIn { 0% { opacity: 0; transform: translate(-50%, 20px); } 10% { opacity: 1; transform: translate(-50%, 0); } 90% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -20px); } }
+  
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  
+  .dragging-card { opacity: 0.5; transform: scale(0.98); box-shadow: 0 10px 25px var(--shadow-color); border: 2px dashed var(--primary); }
+`;
+
+// --- Helpers ---
+const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => (Math.random() * 16 | 0).toString(16));
+};
+const formatDate = (ts) => {
+  if (!ts) return '';
+  const date = new Date(ts);
+  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+};
+
+// --- GAS Script String (Updated for split cells) ---
+const gasCodeString = `function doPost(e) {
+  const contents = JSON.parse(e.postData.contents);
+  const action = contents.action;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const CHUNK_SIZE = 40000;
+  
+  if (action === 'check') {
+    const lastRow = sheet.getLastRow();
+    const hasData = lastRow >= 1 && sheet.getRange(lastRow, 1).getValue() !== "";
+    return ContentService.createTextOutput(JSON.stringify({status: 'success', hasData: hasData})).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === 'save') {
+    const isFirstSync = contents.isFirstSync;
+    const lastRow = sheet.getLastRow();
+    const dataStr = contents.data;
+    
+    // データをチャンクに分割 (1セル50000文字制限対策)
+    const chunks = [];
+    for (let i = 0; i < dataStr.length; i += CHUNK_SIZE) {
+      chunks.push(dataStr.substring(i, i + CHUNK_SIZE));
+    }
+    
+    // 日付を先頭にし、その後に分割したデータを配置
+    const rowData = [new Date(), ...chunks];
+    
+    if (isFirstSync || lastRow === 0) {
+      sheet.appendRow(rowData);
+    } else {
+      // 上書き時は該当行をクリアしてからセット
+      const maxCol = sheet.getLastColumn();
+      if (maxCol > 0) {
+        sheet.getRange(lastRow, 1, 1, maxCol).clearContent();
+      }
+      sheet.getRange(lastRow, 1, 1, rowData.length).setValues([rowData]);
+    }
+    return ContentService.createTextOutput(JSON.stringify({status: 'success'})).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === 'load') {
+    const lastRow = sheet.getLastRow();
+    if (lastRow === 0) {
+      return ContentService.createTextOutput(JSON.stringify({status: 'success', data: null})).setMimeType(ContentService.MimeType.JSON);
+    }
+    const maxCol = sheet.getLastColumn();
+    if (maxCol <= 1) {
+       return ContentService.createTextOutput(JSON.stringify({status: 'success', data: ""})).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 2列目から最後までを取得して結合
+    const values = sheet.getRange(lastRow, 2, 1, maxCol - 1).getValues()[0];
+    const data = values.join("");
+    
+    return ContentService.createTextOutput(JSON.stringify({status: 'success', data: data})).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
+// --- Memo Card Component ---
+function MemoCard({ memo, isEditing, displayMode, isMemoEditMode, onStartEdit, onSave, onCancel, onDelete, onMove, onToggleFavorite, onMoveUp, onMoveDown }) {
+  const [editTitle, setEditTitle] = useState(memo.title || '');
+  const [editContent, setEditContent] = useState(memo.content || '');
+  const [copied, setCopied] = useState(false);
+  const [showFavToast, setShowFavToast] = useState(false);
+
+  useEffect(() => { if (isEditing) { setEditTitle(memo.title || ''); setEditContent(memo.content || ''); } }, [isEditing, memo]);
+
+  const handleCopy = () => {
+    const textArea = document.createElement("textarea");
+    textArea.value = memo.content || '';
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    textArea.remove();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFavoriteClick = (e) => {
+    e.stopPropagation();
+    onToggleFavorite(memo.id);
+    if (!memo.isFavorite) {
+      setShowFavToast(true);
+      setTimeout(() => setShowFavToast(false), 2000);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="bg-[var(--card-bg)] p-5 rounded-3xl shadow-lg border border-[var(--border)] mb-4 animate-in fade-in zoom-in duration-200">
+        <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full text-lg font-bold mb-3 p-2 border-b-2 border-[var(--bg-color)] bg-transparent focus:outline-none focus:border-[var(--primary)] text-[var(--text-main)]" placeholder="タイトル" autoFocus />
+        <textarea value={editContent} onChange={e => setEditContent(e.target.value)} maxLength={300} className="w-full h-40 p-3 rounded-2xl bg-[var(--bg-color)] border-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--text-main)] resize-none" placeholder="内容を入力 (最大300文字)" />
+        <div className="flex justify-between items-center mt-3">
+          <span className={`text-xs font-bold ${editContent.length >= 300 ? 'text-red-500' : 'text-[var(--text-muted)]'}`}>{editContent.length}/300</span>
+          <div className="flex gap-2">
+            <button onClick={onCancel} className="px-4 py-2 rounded-full text-sm font-bold bg-[var(--bg-color)] text-[var(--text-muted)] transition-colors md:hover:bg-[var(--sidebar-hover)]">キャンセル</button>
+            <button onClick={() => onSave({ title: editTitle, content: editContent })} className="px-5 py-2 rounded-full text-sm font-bold bg-[var(--primary)] text-white shadow-sm flex items-center gap-1 transition-transform active:scale-95"><Save size={16}/>保存</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center mb-4 transition-all duration-300`}>
+      <div className={`bg-[var(--card-bg)] flex-1 p-5 rounded-[2rem] shadow-sm border border-[var(--border)] relative group md:hover:shadow-md transition-all`}>
+        
+        {!isMemoEditMode && (
+          <div className="absolute top-4 right-4 flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300">
+             <button onClick={handleCopy} className="p-2 text-[var(--primary-dark)] bg-[var(--btn-bg)] rounded-full md:hover:bg-[var(--primary)] md:hover:text-white transition-colors"><Copy size={16}/></button>
+             <button onClick={onStartEdit} className="p-2 text-[var(--primary-dark)] bg-[var(--btn-bg)] rounded-full md:hover:bg-[var(--primary)] md:hover:text-white transition-colors"><Edit2 size={16}/></button>
+             <button onClick={onMove} className="p-2 text-[var(--primary-dark)] bg-[var(--btn-bg)] rounded-full md:hover:bg-[var(--primary)] md:hover:text-white transition-colors flex items-center justify-center"><FolderInput size={16}/></button>
+             <button onClick={onDelete} className="p-2 text-red-400 bg-[var(--btn-bg)] rounded-full md:hover:bg-red-500 md:hover:text-white transition-colors"><Trash2 size={16}/></button>
+          </div>
+        )}
+
+        <div className={`flex items-center gap-2 mb-3 ${isMemoEditMode || displayMode === 'partial' ? 'pr-4' : 'pr-32'}`}>
+          <h3 className="text-xl font-bold text-[var(--text-main)] truncate">{memo.title || '無題のメモ'}</h3>
+          <div className="relative">
+            <button onClick={handleFavoriteClick} className={`p-1 rounded-full transition-transform active:scale-75 ${memo.isFavorite ? 'text-yellow-400' : 'text-[var(--border)] md:hover:text-yellow-200'}`}>
+              <Star size={20} fill={memo.isFavorite ? 'currentColor' : 'none'} strokeWidth={memo.isFavorite ? 0 : 2} />
+            </button>
+            {showFavToast && (
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 bg-yellow-400 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-md whitespace-nowrap animate-in fade-in slide-in-from-bottom-2 z-10 pointer-events-none">
+                お気に入りにしました！
+                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-yellow-400 rotate-45"></div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {displayMode === 'partial' ? (
+           <p className="text-[var(--text-main)] text-sm truncate opacity-80">{memo.content ? memo.content.split('\n')[0] : ''}</p>
+        ) : (
+           <p className="whitespace-pre-wrap text-[var(--text-main)] text-sm leading-relaxed break-words">{memo.content}</p>
+        )}
+
+        <div className="flex justify-end items-center mt-4 text-[10px] text-[var(--text-main)] opacity-40 font-bold space-x-3">
+          <span>{formatDate(memo.updatedAt || memo.createdAt)}</span>
+          <span>{memo.content?.length || 0}/300</span>
+        </div>
+      </div>
+
+      {isMemoEditMode && (
+        <div className="flex flex-col items-center justify-center pl-2 gap-2 animate-in fade-in slide-in-from-right-4">
+          <button onClick={() => onMoveUp(memo.id)} className="p-2 bg-[var(--btn-bg)] text-[var(--primary-dark)] rounded-full md:hover:bg-[var(--primary)] md:hover:text-white transition-colors"><ArrowUp size={16}/></button>
+          <button onClick={() => onMoveDown(memo.id)} className="p-2 bg-[var(--btn-bg)] text-[var(--primary-dark)] rounded-full md:hover:bg-[var(--primary)] md:hover:text-white transition-colors"><ArrowDown size={16}/></button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Main App ---
+export default function App() {
+  const [items, setItems] = useState(() => {
+    try {
+      const saved = localStorage.getItem('memoApp_data');
+      return saved ? JSON.parse(saved) : [{ id: 'root', type: 'folder', parentId: null, title: 'HOME', createdAt: Date.now() }];
+    } catch { return [{ id: 'root', type: 'folder', parentId: null, title: 'HOME', createdAt: Date.now() }]; }
+  });
+
+  const [selectedFolderId, setSelectedFolderId] = useState('root');
+  const [theme, setTheme] = useState(() => localStorage.getItem('memoApp_theme') || 'paleblue');
+  const [font, setFont] = useState(() => localStorage.getItem('memoApp_font') || 'notoSans');
+  const [displayMode, setDisplayMode] = useState(() => localStorage.getItem('memoApp_displayMode') || 'full'); 
+  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState({ root: true });
+  
+  const [editingMemoId, setEditingMemoId] = useState(null);
+  const [isMemoEditMode, setIsMemoEditMode] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  
+  const [isFolderEditMode, setIsFolderEditMode] = useState(false);
+  const [showDepthError, setShowDepthError] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  // GAS Sync State
+  const [gasUrl, setGasUrl] = useState(() => localStorage.getItem('memoApp_gasUrl') || '');
+  const [hasSynced, setHasSynced] = useState(() => localStorage.getItem('memoApp_hasSynced') === 'true');
+  const [showGasSetup, setShowGasSetup] = useState(() => (localStorage.getItem('memoApp_gasUrl') || '').trim().length > 0);
+  const [autoSaveInterval, setAutoSaveInterval] = useState(() => Number(localStorage.getItem('memoApp_autoSaveInterval')) || 0);
+  const [lastSavedAt, setLastSavedAt] = useState(Date.now());
+  const [isSaving, setIsSaving] = useState(false);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
+  const [syncErrorMsg, setSyncErrorMsg] = useState(''); // Added for error reporting
+
+  // Modals
+  const [folderModal, setFolderModal] = useState({ isOpen: false, type: 'create', folderId: null, name: '' });
+  const [moveModal, setMoveModal] = useState({ isOpen: false, itemId: null, targetFolderId: null });
+  const [themeModal, setThemeModal] = useState(false);
+  const [fontModal, setFontModal] = useState(false);
+  
+  // Settings Screen & Sub-Modals
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [activeSettingsModal, setActiveSettingsModal] = useState(null); // 'display', 'backup'
+  const [backupTab, setBackupTab] = useState('text');
+  
+  const [showGasInstructions, setShowGasInstructions] = useState(false);
+  const [gasConsentChecked, setGasConsentChecked] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, targetId: null, type: null });
+  const [gasOverwriteConfirm, setGasOverwriteConfirm] = useState({ isOpen: false, pendingGasUrl: '', step: 1 }); // Safety prompt
+
+  const itemsRef = useRef(items);
+  const initialLoadDone = useRef(false);
+  
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
+  const showToast = (msg) => { setToastMessage(''); setTimeout(() => setToastMessage(msg), 10); };
+
+  const handleCloseSettings = () => {
+    setIsSettingsOpen(false);
+    if (!gasUrl.trim()) {
+      setShowGasSetup(false);
+      setGasConsentChecked(false);
+    }
+  };
+
+  // --- GAS Sync Logic ---
+  const syncWithGas = async (action, targetGasUrl = gasUrl, isFirstSync = false) => {
+    if (!targetGasUrl) { showToast('GASのURLを入力してください'); return; }
+    
+    setIsSaving(true);
+    setSyncErrorMsg(''); // Clear previous errors
+    try {
+      const payload = {
+        action: action,
+        isFirstSync: isFirstSync,
+        data: action === 'save' ? JSON.stringify({
+          items: itemsRef.current,
+          theme: theme,
+          font: font,
+          settings: { displayMode, autoSaveInterval }
+        }) : null
+      };
+
+      const response = await fetch(targetGasUrl, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        if (action === 'load' && result.data) {
+          let rawData = result.data;
+          try {
+            if (typeof rawData === 'string') {
+              // スプレッドシート由来の意図しないエスケープ（二重引用符）を解除
+              if (rawData.startsWith('"') && rawData.endsWith('"') && rawData.includes('""')) {
+                rawData = rawData.slice(1, -1).replace(/""/g, '"');
+              }
+              // JSON文字列内に実際の改行文字等が紛れ込んでいる場合、パースエラーを防ぐためにエスケープ
+              rawData = rawData.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
+            }
+            
+            const parsed = JSON.parse(rawData);
+            if (Array.isArray(parsed)) {
+              setItems(parsed); 
+            } else {
+              if (parsed.items) setItems(parsed.items);
+              if (parsed.theme) setTheme(parsed.theme);
+              if (parsed.font) setFont(parsed.font);
+              if (parsed.settings) {
+                if (parsed.settings.displayMode) setDisplayMode(parsed.settings.displayMode);
+                if (parsed.settings.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.settings.autoSaveInterval);
+              }
+            }
+            showToast('スプレッドシートから読み込みました');
+            setSyncSuccessMsg('読込完了！');
+            setTimeout(() => setSyncSuccessMsg(''), 3000);
+          } catch(e) { 
+            console.error('Parse Error:', e);
+            setSyncErrorMsg(`データ解析エラー: ${e.message}\n\n対象データ:\n${rawData}`);
+            showToast(`データ解析エラー`); 
+          }
+        } else if (action === 'save') {
+          setLastSavedAt(Date.now());
+          showToast('スプレッドシートへ保存しました');
+          setSyncSuccessMsg('保存完了！');
+          setTimeout(() => setSyncSuccessMsg(''), 3000);
+        } else if (action === 'load' && !result.data) {
+          showToast('サーバーにデータがありません');
+        } else {
+          // General success
+        }
+        
+        setHasSynced(true);
+        localStorage.setItem('memoApp_hasSynced', 'true');
+        localStorage.setItem('memoApp_gasUrl', targetGasUrl);
+        setGasUrl(targetGasUrl);
+      } else {
+        setSyncErrorMsg('通信エラー: ' + (result.message || '不明なエラー'));
+        showToast('通信エラーが発生しました');
+      }
+    } catch (e) {
+      console.error(e);
+      setSyncErrorMsg(`通信エラー: ${e.message}`);
+      showToast(`通信エラーが発生しました`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleInitialSaveClick = async () => {
+    if (!gasUrl) { showToast('GASのURLを入力してください'); return; }
+    setIsSaving(true);
+    setSyncErrorMsg('');
+    try {
+      const response = await fetch(gasUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'check' }),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+      const result = await response.json();
+      if (result.status === 'success' && result.hasData) {
+        setGasOverwriteConfirm({ isOpen: true, pendingGasUrl: gasUrl, step: 1 });
+      } else {
+        // No data on server, safe to append
+        syncWithGas('save', gasUrl, true);
+      }
+    } catch (e) {
+      setSyncErrorMsg(`通信エラー。URLを確認してください。\n${e.message}`);
+      showToast('通信エラーが発生しました');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramGas = urlParams.get('gas');
+    
+    if (paramGas && paramGas !== gasUrl) {
+      setGasUrl(paramGas);
+      syncWithGas('load', paramGas);
+    } else if (gasUrl && hasSynced && !initialLoadDone.current) {
+      initialLoadDone.current = true;
+      syncWithGas('load', gasUrl);
+    }
+  }, []);
+
+  useEffect(() => { localStorage.setItem('memoApp_data', JSON.stringify(items)); }, [items]);
+  useEffect(() => { localStorage.setItem('memoApp_theme', theme); document.documentElement.setAttribute('data-theme', theme); }, [theme]);
+  useEffect(() => { localStorage.setItem('memoApp_font', font); document.documentElement.setAttribute('data-font', font); }, [font]);
+  useEffect(() => { localStorage.setItem('memoApp_displayMode', displayMode); }, [displayMode]);
+  useEffect(() => { localStorage.setItem('memoApp_autoSaveInterval', autoSaveInterval); }, [autoSaveInterval]);
+
+  useEffect(() => {
+    if (autoSaveInterval > 0 && gasUrl && hasSynced) {
+      const timer = setInterval(() => {
+        if (Date.now() - lastSavedAt >= autoSaveInterval * 60000) syncWithGas('save', gasUrl, false);
+      }, 30000);
+      return () => clearInterval(timer);
+    }
+  }, [autoSaveInterval, gasUrl, hasSynced, lastSavedAt, items, theme, font, displayMode]); 
+
+  const handleExportText = () => {
+    const data = JSON.stringify({ items, theme, font, settings: { displayMode, autoSaveInterval } }, null, 2);
+    const textArea = document.createElement("textarea");
+    textArea.value = data;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    textArea.remove();
+    showToast('テキストをコピーしました');
+  };
+
+  const handleImportText = () => {
+    try {
+      const data = JSON.parse(importText);
+      if (Array.isArray(data)) {
+        setItems(data); 
+      } else {
+        if (data.items) setItems(data.items);
+        if (data.theme) setTheme(data.theme);
+        if (data.font) setFont(data.font);
+        if (data.settings) {
+          if (data.settings.displayMode) setDisplayMode(data.settings.displayMode);
+          if (data.settings.autoSaveInterval !== undefined) setAutoSaveInterval(data.settings.autoSaveInterval);
+        }
+      }
+      showToast('データを読み込みました');
+      setImportText('');
+      setActiveSettingsModal(null);
+    } catch { showToast('データ形式が正しくありません'); }
+  };
+
+  const getFolderDepth = (id, itemsArray = items) => {
+    if (id === 'root' || !id) return 0;
+    let d = 1, curr = itemsArray.find(i => i.id === id);
+    const safetyLimit = 20; let count = 0;
+    while (curr && curr.parentId !== 'root' && curr.parentId !== null && count < safetyLimit) {
+      count++; const parent = itemsArray.find(i => i.id === curr.parentId);
+      if (!parent) break; d++; curr = parent;
+    }
+    return d;
+  };
+
+  const handleAddFolder = () => {
+    const name = folderModal.name.trim();
+    if (!name) return;
+    setItems(prev => {
+      if (folderModal.type === 'create') {
+        const nid = generateId();
+        const newState = [...prev, { id: nid, type: 'folder', parentId: selectedFolderId, title: name, createdAt: Date.now() }];
+        setTimeout(() => { setExpandedFolders(ex => ({ ...ex, [selectedFolderId]: true })); setSelectedFolderId(nid); }, 10);
+        return newState;
+      } else {
+        return prev.map(i => i.id === folderModal.folderId ? { ...i, title: name } : i);
+      }
+    });
+    setFolderModal({ isOpen: false, type: 'create', folderId: null, name: '' });
+  };
+
+  const handleAddMemo = () => {
+    const nid = generateId();
+    setItems(prev => [{ id: nid, type: 'note', parentId: selectedFolderId, title: '', content: '', isFavorite: false, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]);
+    setEditingMemoId(nid);
+    setIsMemoEditMode(false); 
+  };
+
+  const executeDelete = () => {
+    setItems(prev => {
+      if (deleteConfirm.type === 'folder') {
+        const ids = new Set([deleteConfirm.targetId]);
+        let size = 0;
+        while (ids.size > size) { size = ids.size; prev.forEach(i => { if (ids.has(i.parentId)) ids.add(i.id); }); }
+        if (ids.has(selectedFolderId)) setSelectedFolderId('root');
+        return prev.filter(i => !ids.has(i.id));
+      } else {
+        return prev.filter(i => i.id !== deleteConfirm.targetId);
+      }
+    });
+    setDeleteConfirm({ isOpen: false, targetId: null, type: null });
+    showToast('削除しました');
+  };
+
+  const swapElements = (arr, idx1, idx2) => {
+    const newArr = [...arr];
+    const temp = newArr[idx1];
+    newArr[idx1] = newArr[idx2];
+    newArr[idx2] = temp;
+    return newArr;
+  };
+
+  const handleFolderMoveOrder = (id, dir) => {
+    setItems(prev => {
+      const idx = prev.findIndex(i => i.id === id);
+      if (idx === -1) return prev;
+      const target = prev[idx];
+      const siblings = prev.filter(i => i.type === 'folder' && i.parentId === target.parentId);
+      const sidx = siblings.findIndex(i => i.id === id);
+      if (dir === 'up' && sidx > 0) {
+        return swapElements(prev, idx, prev.findIndex(i => i.id === siblings[sidx - 1].id));
+      } else if (dir === 'down' && sidx < siblings.length - 1) {
+        return swapElements(prev, idx, prev.findIndex(i => i.id === siblings[sidx + 1].id));
+      }
+      return prev;
+    });
+  };
+
+  const handleFolderIndent = (id, dir) => {
+    setItems(prev => {
+      const idx = prev.findIndex(i => i.id === id);
+      if (idx === -1) return prev;
+      const target = prev[idx];
+      const siblings = prev.filter(i => i.type === 'folder' && i.parentId === target.parentId);
+      const sidx = siblings.findIndex(i => i.id === id);
+
+      if (dir === 'in' && sidx > 0) {
+        const prevSibling = siblings[sidx - 1];
+        if (getFolderDepth(prevSibling.id, prev) >= 5) {
+            showToast('これ以上階層を深くできません');
+            return prev;
+        }
+        const nextItems = [...prev];
+        nextItems[idx] = { ...target, parentId: prevSibling.id };
+        setExpandedFolders(ex => ({ ...ex, [prevSibling.id]: true }));
+        return nextItems;
+      } else if (dir === 'out' && target.parentId !== 'root') {
+        const parentFolder = prev.find(i => i.id === target.parentId);
+        if (parentFolder) {
+          const nextItems = [...prev];
+          nextItems[idx] = { ...target, parentId: parentFolder.parentId };
+          return nextItems;
+        }
+      }
+      return prev;
+    });
+  };
+
+  const handleMemoMoveOrder = (id, dir) => {
+    setItems(prev => {
+      const idx = prev.findIndex(i => i.id === id);
+      if (idx === -1) return prev;
+      const siblings = prev.filter(i => i.type === 'note' && i.parentId === selectedFolderId && (!showFavoritesOnly || i.isFavorite));
+      const sidx = siblings.findIndex(i => i.id === id);
+      if (dir === 'up' && sidx > 0) {
+        return swapElements(prev, idx, prev.findIndex(i => i.id === siblings[sidx - 1].id));
+      } else if (dir === 'down' && sidx < siblings.length - 1) {
+        return swapElements(prev, idx, prev.findIndex(i => i.id === siblings[sidx + 1].id));
+      }
+      return prev;
+    });
+  };
+
+  const FolderTreeItem = ({ item, level, isSelectMode = false, onSelect = null, currentTargetId = null }) => {
+    const hasChildren = items.some(i => i.type === 'folder' && i.parentId === item.id);
+    const isExpanded = expandedFolders[item.id] || isSelectMode;
+    const isSelected = isSelectMode ? currentTargetId === item.id : selectedFolderId === item.id;
+    const memoCount = items.filter(i => i.type === 'note' && i.parentId === item.id).length;
+
+    return (
+      <div className="font-bold">
+        <div 
+          className={`flex items-center py-2 px-3 mx-2 my-0.5 rounded-2xl cursor-pointer transition-all ${isSelected ? 'bg-[var(--sidebar-active)] text-white shadow-md' : 'md:hover:bg-[var(--sidebar-hover)] text-[var(--sidebar-text)]'}`}
+          style={{ paddingLeft: `${level * 1.25 + 0.5}rem` }}
+          onClick={() => isSelectMode ? onSelect(item.id) : setSelectedFolderId(item.id)}
+        >
+          <button className="p-1 mr-1 rounded-full md:hover:bg-black/10 transition-colors" onClick={(e) => { e.stopPropagation(); setExpandedFolders(ex => ({...ex, [item.id]: !isExpanded})); }}>
+            {hasChildren ? (isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>) : <span className="w-3.5"/>}
+          </button>
+          <div className="flex-1 min-w-0 flex items-center justify-between">
+            <div className="flex items-center min-w-0 pr-2">
+              {isSelected ? <FolderOpen size={18} className="mr-2 shrink-0"/> : <Folder size={18} className={`mr-2 opacity-70 shrink-0 ${isSelected ? 'text-white' : 'text-[var(--primary-dark)]'}`}/>}
+              <span className="truncate text-sm">{item.title}</span>
+            </div>
+            <div className={`flex items-center text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-[var(--border)]/50 text-[var(--text-muted)]'}`}>
+              <FileText size={10} className="mr-0.5" />
+              <span>{memoCount}</span>
+            </div>
+          </div>
+        </div>
+        {isExpanded && hasChildren && (
+          <div className="relative">
+             <div className="absolute left-[1.4rem] top-0 bottom-0 w-[1.5px] bg-[var(--border)] opacity-30"></div>
+             {items.filter(i => i.type === 'folder' && i.parentId === item.id).map(child => <FolderTreeItem key={child.id} item={child} level={level + 1} isSelectMode={isSelectMode} onSelect={onSelect} currentTargetId={currentTargetId} />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const FolderEditTreeItem = ({ item, level }) => {
+    const hasChildren = items.some(i => i.type === 'folder' && i.parentId === item.id);
+    const isExpanded = expandedFolders[item.id];
+    const siblings = items.filter(i => i.type === 'folder' && i.parentId === item.parentId);
+    const sidx = siblings.findIndex(i => i.id === item.id);
+    const memoCount = items.filter(i => i.type === 'note' && i.parentId === item.id).length;
+
+    return (
+      <div className="font-bold">
+        <div 
+          className={`flex items-center justify-between py-2 px-3 mx-2 my-1 rounded-2xl bg-[var(--card-bg)] border border-[var(--border)] shadow-sm overflow-x-auto`}
+          style={{ marginLeft: `${level * 1.5}rem` }}
+        >
+          <div className="flex items-center flex-1 min-w-0 pr-2">
+            <button className="p-1 mr-1 rounded-full md:hover:bg-black/10 transition-colors" onClick={(e) => { e.stopPropagation(); setExpandedFolders(ex => ({...ex, [item.id]: !isExpanded})); }}>
+              {hasChildren ? (isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>) : <span className="w-3.5"/>}
+            </button>
+            <Folder size={18} className="mr-2 opacity-70 shrink-0 text-[var(--primary-dark)]"/>
+            <span className="truncate text-sm text-[var(--text-main)] mr-2">{item.title}</span>
+            <div className="flex items-center text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-full bg-[var(--border)]/50 text-[var(--text-muted)]">
+               <FileText size={10} className="mr-0.5" />
+               <span>{memoCount}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-0 sm:gap-1 ml-2 shrink-0">
+            <button onClick={() => handleFolderIndent(item.id, 'out')} disabled={item.parentId === 'root'} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${item.parentId === 'root' ? 'opacity-20 cursor-not-allowed' : ''}`} title="左へ移動 (階層上げる)"><ArrowLeft size={16}/></button>
+            <button onClick={() => handleFolderIndent(item.id, 'in')} disabled={sidx === 0} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : ''}`} title="右へ移動 (子フォルダにする)"><ArrowRight size={16}/></button>
+            
+            <div className="w-px h-5 bg-[var(--border)] mx-1" />
+            
+            <button onClick={() => handleFolderMoveOrder(item.id, 'up')} disabled={sidx === 0} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : ''}`} title="上へ移動"><ArrowUp size={16}/></button>
+            <button onClick={() => handleFolderMoveOrder(item.id, 'down')} disabled={sidx === siblings.length - 1} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${sidx === siblings.length - 1 ? 'opacity-20 cursor-not-allowed' : ''}`} title="下へ移動"><ArrowDown size={16}/></button>
+
+            <div className="w-px h-5 bg-[var(--border)] mx-1" />
+
+            <button onClick={() => setFolderModal({ isOpen: true, type: 'edit', folderId: item.id, name: item.title })} className="p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors" title="名前を変更"><Edit2 size={16}/></button>
+            <button onClick={() => setDeleteConfirm({ isOpen: true, targetId: item.id, type: 'folder' })} className="p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-red-400 transition-colors" title="削除"><Trash2 size={16}/></button>
+          </div>
+        </div>
+        {isExpanded && hasChildren && (
+          <div className="relative">
+             {items.filter(i => i.type === 'folder' && i.parentId === item.id).map(child => <FolderEditTreeItem key={child.id} item={child} level={level + 1} />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const visibleMemos = items.filter(i => i.type === 'note' && i.parentId === selectedFolderId && (!showFavoritesOnly || i.isFavorite));
+
+  return (
+    <>
+      <style>{themeCSS}</style>
+      <div className="flex h-screen overflow-hidden selection:bg-[var(--primary)] selection:text-white relative">
+        
+        {/* --- Mobile Sidebar Overlay --- */}
+        {isSidebarOpen && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300" onClick={() => setIsSidebarOpen(false)} />
+        )}
+
+        {/* --- Sidebar --- */}
+        <div className={`fixed inset-y-0 left-0 z-40 w-80 md:relative md:translate-x-0 transform transition-transform duration-300 ease-in-out bg-[var(--sidebar-bg)] border-r border-[var(--border)] flex flex-col shadow-lg md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-white/20">
+            <h1 className="font-bold flex items-center gap-2 text-[var(--primary-text)] text-2xl tracking-tight" style={{ fontFamily: "'Comfortaa', sans-serif" }}>
+              <Leaf size={24} className="text-[var(--primary-dark)]"/>foglia
+            </h1>
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 bg-[var(--card-bg)] rounded-full text-[var(--primary-dark)] shadow-sm md:hover:scale-105 active:scale-95 transition-all"><ChevronLeft size={24}/></button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto py-3 custom-scrollbar">
+            <div className="font-bold">
+              <div 
+                className={`flex items-center py-2 px-3 mx-2 my-0.5 rounded-2xl cursor-pointer transition-all ${selectedFolderId === 'root' ? 'bg-[var(--sidebar-active)] text-white shadow-md' : 'md:hover:bg-[var(--sidebar-hover)] text-[var(--sidebar-text)]'}`}
+                style={{ paddingLeft: '0.5rem' }}
+                onClick={() => setSelectedFolderId('root')}
+              >
+                <div className="p-1 mr-1 shrink-0 w-5.5 h-5.5"></div>
+                <div className="flex-1 min-w-0 flex items-center justify-between">
+                  <div className="flex items-center min-w-0 pr-2">
+                    <Home size={18} className={`mr-2 shrink-0 ${selectedFolderId === 'root' ? 'text-white' : 'text-[var(--primary-dark)]'}`}/>
+                    <span className="text-sm">HOME</span>
+                  </div>
+                  <div className={`flex items-center text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-full ${selectedFolderId === 'root' ? 'bg-white/20 text-white' : 'bg-[var(--border)]/50 text-[var(--text-muted)]'}`}>
+                    <FileText size={10} className="mr-0.5" />
+                    <span>{items.filter(i => i.type === 'note' && i.parentId === 'root').length}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {items.filter(i => i.type === 'folder' && i.parentId === 'root').map(folder => <FolderTreeItem key={folder.id} item={folder} level={0} />)}
+          </div>
+
+          <div className="p-4 border-t border-[var(--border)] bg-white/10 flex flex-col gap-2">
+            <div className="flex gap-2 relative">
+              <div className="flex-1 relative">
+                <button onClick={() => {
+                  if (getFolderDepth(selectedFolderId) >= 5) { setShowDepthError(true); setTimeout(() => setShowDepthError(false), 3000); }
+                  else setFolderModal({ isOpen: true, type: 'create', folderId: null, name: '' });
+                }} className={`w-full py-3 rounded-2xl text-sm font-bold bg-[var(--card-bg)] text-[var(--primary-text)] border border-transparent shadow-sm md:hover:shadow-md transition-all ${getFolderDepth(selectedFolderId) >= 5 ? 'opacity-30 cursor-not-allowed' : ''}`}><Plus size={18} className="inline mr-1"/>フォルダ作成</button>
+                {showDepthError && <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-[10px] p-3 rounded-xl text-center z-50 shadow-xl font-bold">フォルダは5階層まで</div>}
+              </div>
+              <button onClick={() => setIsFolderEditMode(true)} className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all bg-transparent text-[var(--text-muted)] border border-transparent md:hover:border-[var(--border)] md:hover:bg-white/30`}>
+                フォルダ編集
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <button onClick={() => setThemeModal(true)} className="flex flex-col items-center py-2 text-[10px] font-bold text-[var(--text-muted)] md:hover:bg-white/40 md:hover:text-[var(--primary-dark)] rounded-2xl transition-all"><Palette size={18} className="mb-1"/>テーマ</button>
+              <button onClick={() => setFontModal(true)} className="flex flex-col items-center py-2 text-[10px] font-bold text-[var(--text-muted)] md:hover:bg-white/40 md:hover:text-[var(--primary-dark)] rounded-2xl transition-all"><Type size={18} className="mb-1"/>フォント</button>
+              <button onClick={() => setIsSettingsOpen(true)} className="flex flex-col items-center py-2 text-[10px] font-bold text-[var(--text-muted)] md:hover:bg-white/40 md:hover:text-[var(--primary-dark)] rounded-2xl transition-all"><Settings size={18} className="mb-1"/>設定</button>
+            </div>
+            <div className="text-center mt-2 text-[10px] text-[var(--text-muted)] opacity-50 font-bold">
+              &copy; {new Date().getFullYear()} yoitsuki
+            </div>
+          </div>
+        </div>
+
+        {/* --- Main Area --- */}
+        <div className="flex-1 flex flex-col bg-[var(--bg-color)] relative h-full">
+          <header className="h-16 flex items-center justify-between px-4 sm:px-6 border-b border-[var(--border)] bg-[var(--card-bg)]/80 backdrop-blur-md shrink-0 z-10 shadow-sm">
+            <div className="flex items-center gap-2 overflow-hidden flex-1">
+              <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 bg-[var(--sidebar-bg)] rounded-full text-[var(--primary-dark)] shrink-0"><Menu size={24}/></button>
+              <div className="text-lg font-bold truncate text-[var(--text-main)]">
+                {selectedFolderId === 'root' ? 'HOME' : items.find(i => i.id === selectedFolderId)?.title || '...'}
+              </div>
+            </div>
+
+            {/* Header Right Tool Bar */}
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              {hasSynced && (
+                <div className="relative flex items-center justify-center shrink-0">
+                  <button onClick={() => syncWithGas('save', gasUrl, false)} disabled={isSaving} className={`p-2 rounded-full font-bold shadow-sm transition-all active:scale-95 border border-[var(--border)] ${isSaving ? 'bg-[var(--primary)] text-white' : 'bg-[var(--btn-bg)] text-[var(--primary-dark)]'}`} title="手動保存">
+                    <Save size={18} className={isSaving ? "opacity-50" : ""} />
+                  </button>
+                  <span className="absolute bottom-full left-0 mb-0.5 text-[8px] leading-none text-[var(--text-muted)] opacity-70 whitespace-nowrap tracking-tighter pointer-events-none">
+                    最終連携:{formatDate(lastSavedAt).replace('202', '2')}
+                  </span>
+                </div>
+              )}
+              <button onClick={() => setShowFavoritesOnly(!showFavoritesOnly)} className={`p-2 rounded-full font-bold shadow-sm transition-all active:scale-95 ${showFavoritesOnly ? 'bg-yellow-400 text-white' : 'bg-[var(--btn-bg)] text-yellow-400 border border-[var(--border)]'}`} title="お気に入り絞り込み">
+                <Star size={18} fill={showFavoritesOnly ? 'currentColor' : 'none'} strokeWidth={showFavoritesOnly ? 0 : 2} />
+              </button>
+              <button onClick={() => setIsMemoEditMode(!isMemoEditMode)} className={`p-2 rounded-full font-bold shadow-sm transition-all active:scale-95 ${isMemoEditMode ? 'bg-[var(--primary)] text-white' : 'bg-[var(--btn-bg)] text-[var(--primary-dark)] border border-[var(--border)]'}`} title="並び替え">
+                <ArrowUpDown size={18} />
+              </button>
+            </div>
+          </header>
+          
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative">
+            <div className="max-w-4xl mx-auto pb-24">
+              {/* Memo List Title & New Button */}
+              <div className="flex justify-between items-center mb-8 gap-4">
+                <h2 className="text-xl sm:text-2xl font-bold flex gap-2 items-center text-[var(--text-main)]"><FileText className="text-[var(--primary-dark)]"/>メモ一覧</h2>
+                <button onClick={handleAddMemo} className="bg-[var(--primary)] text-white px-4 sm:px-5 py-2 sm:py-3 rounded-full font-bold shadow-md md:hover:shadow-lg transition-all active:scale-95 flex items-center gap-1.5 text-sm sm:text-base whitespace-nowrap">
+                  <Plus size={20} className="shrink-0" />新規メモ
+                </button>
+              </div>
+              
+              {visibleMemos.length === 0 && !editingMemoId ? (
+                showFavoritesOnly ? (
+                  <div className="text-center py-24 px-4 bg-[var(--card-bg)]/50 rounded-[3rem] border-2 border-dashed border-[var(--border)] transition-all">
+                    <Star size={64} className="mx-auto text-[var(--border)] mb-4 opacity-50" />
+                    <div className="overflow-hidden px-2">
+                      <p className="text-[var(--text-muted)] font-bold text-sm sm:text-lg mb-6 whitespace-nowrap overflow-hidden text-ellipsis text-center">お気に入りメモがありません。</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-24 px-4 bg-[var(--card-bg)]/50 rounded-[3rem] border-2 border-dashed border-[var(--border)] transition-all">
+                    <FileText size={64} className="mx-auto text-[var(--border)] mb-4 opacity-50" />
+                    <div className="overflow-hidden px-2">
+                      <p className="text-[var(--text-muted)] font-bold text-sm sm:text-lg mb-6 whitespace-nowrap overflow-hidden text-ellipsis text-center">このフォルダにはまだメモがありません。</p>
+                    </div>
+                    <button onClick={handleAddMemo} className="text-[var(--primary-dark)] font-bold text-lg md:hover:underline decoration-2 underline-offset-4">新しいメモを作成する</button>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-0" onDragOver={e => e.preventDefault()}>
+                  {visibleMemos.map((note) => (
+                    <MemoCard 
+                      key={note.id} memo={note} 
+                      isEditing={editingMemoId === note.id}
+                      isMemoEditMode={isMemoEditMode}
+                      displayMode={displayMode}
+                      onStartEdit={() => setEditingMemoId(note.id)}
+                      onSave={(up) => { setItems(prev => prev.map(i => i.id === note.id ? {...i, ...up, updatedAt: Date.now()} : i)); setEditingMemoId(null); showToast('保存しました'); }}
+                      onCancel={() => { setEditingMemoId(null); if (!note.title && !note.content) setItems(prev => prev.filter(i => i.id !== note.id)); }}
+                      onDelete={() => setDeleteConfirm({ isOpen: true, targetId: note.id, type: 'memo' })}
+                      onMove={() => setMoveModal({ isOpen: true, itemId: note.id, targetFolderId: selectedFolderId })}
+                      onToggleFavorite={(id) => setItems(prev => prev.map(i => i.id === id ? {...i, isFavorite: !i.isFavorite} : i))}
+                      onMoveUp={(id) => handleMemoMoveOrder(id, 'up')}
+                      onMoveDown={(id) => handleMemoMoveOrder(id, 'down')}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </main>
+          {toastMessage && (
+            <div className="fixed bottom-10 left-1/2 z-[200] toast-anim pointer-events-none transform -translate-x-1/2">
+              <div className="bg-slate-800 text-white px-8 py-4 rounded-full font-bold shadow-2xl text-sm flex gap-3 items-center whitespace-nowrap"><Check size={18} className="text-[var(--primary)]"/>{toastMessage}</div>
+            </div>
+          )}
+        </div>
+
+        {/* --- Fullscreen Settings Modal (List Style) --- */}
+        {isSettingsOpen && (
+          <div className="fixed inset-0 bg-[var(--bg-color)] z-[150] flex flex-col animate-in fade-in duration-200">
+            {/* Header */}
+            <div className="flex items-center px-4 py-4 border-b border-[var(--border)] bg-[var(--card-bg)] shadow-sm">
+              <button onClick={handleCloseSettings} className="p-2 text-[var(--text-main)] md:hover:bg-[var(--btn-bg)] rounded-full transition-colors mr-2">
+                <ChevronLeft size={28}/>
+              </button>
+              <h2 className="text-xl font-bold text-[var(--text-main)]">設定</h2>
+            </div>
+
+            {/* List Menu */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+              <div className="max-w-2xl mx-auto space-y-8">
+                
+                {/* Display Section */}
+                <div className="space-y-2">
+                   <h3 className="text-xs font-bold text-[var(--text-muted)] ml-4">表示設定</h3>
+                   <div className="bg-[var(--card-bg)] rounded-[1.5rem] overflow-hidden border border-[var(--border)] shadow-sm">
+                     <button onClick={() => setActiveSettingsModal('display')} className="w-full flex items-center justify-between p-4 md:hover:bg-[var(--btn-bg)] transition-colors text-left">
+                       <div className="flex items-center gap-4">
+                         <Monitor size={22} className="text-[var(--text-main)] opacity-70" />
+                         <div>
+                           <div className="font-bold text-[var(--text-main)] text-sm">メモの表示形式</div>
+                           <div className="text-xs text-[var(--text-muted)]">{displayMode === 'full' ? '全体表示' : '部分表示'}</div>
+                         </div>
+                       </div>
+                       <ChevronRight size={20} className="text-[var(--text-muted)] opacity-50" />
+                     </button>
+                   </div>
+                </div>
+
+                {/* Data & Backup Section */}
+                <div className="space-y-2">
+                   <h3 className="text-xs font-bold text-[var(--text-muted)] ml-4">データと同期</h3>
+                   <div className="bg-[var(--card-bg)] rounded-[1.5rem] overflow-hidden border border-[var(--border)] shadow-sm">
+                     <button onClick={() => { setActiveSettingsModal('backup'); setBackupTab('text'); }} className="w-full flex items-center justify-between p-4 border-b border-[var(--border)] md:hover:bg-[var(--btn-bg)] transition-colors text-left">
+                       <div className="flex items-center gap-4">
+                         <Database size={22} className="text-[var(--text-main)] opacity-70" />
+                         <div>
+                           <div className="font-bold text-[var(--text-main)] text-sm">バックアップと復元</div>
+                           <div className="text-xs text-[var(--text-muted)]">テキストデータを用いた入出力</div>
+                         </div>
+                       </div>
+                       <ChevronRight size={20} className="text-[var(--text-muted)] opacity-50" />
+                     </button>
+                     <button onClick={() => { setActiveSettingsModal('backup'); setBackupTab('cloud'); }} className="w-full flex items-center justify-between p-4 md:hover:bg-[var(--btn-bg)] transition-colors text-left">
+                       <div className="flex items-center gap-4">
+                         <RefreshCw size={22} className="text-[var(--text-main)] opacity-70" />
+                         <div>
+                           <div className="font-bold text-[var(--text-main)] text-sm">GAS連携と同期</div>
+                           <div className="text-xs text-[var(--text-muted)]">スプレッドシートへのクラウド保存設定</div>
+                         </div>
+                       </div>
+                       <ChevronRight size={20} className="text-[var(--text-muted)] opacity-50" />
+                     </button>
+                   </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Display Mode Detail Modal */}
+            {activeSettingsModal === 'display' && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[160] flex items-end justify-center sm:items-center p-0 sm:p-4" onClick={() => setActiveSettingsModal(null)}>
+                <div className="bg-[var(--card-bg)] w-full max-w-sm rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl p-6 border-t sm:border border-[var(--border)] animate-in slide-in-from-bottom-10 sm:zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-lg font-bold text-[var(--text-main)]">メモの表示形式</h2>
+                    <button onClick={() => setActiveSettingsModal(null)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500"><X size={20}/></button>
+                  </div>
+                  <div className="space-y-3">
+                    <button onClick={() => { setDisplayMode('full'); setActiveSettingsModal(null); }} className={`w-full flex flex-col p-4 rounded-2xl border-2 transition-all text-left ${displayMode === 'full' ? 'border-[var(--primary)] bg-[var(--sidebar-bg)]' : 'border-[var(--border)] bg-[var(--bg-color)] md:hover:bg-white/40'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm text-[var(--text-main)]">全体表示</span>
+                        {displayMode === 'full' && <Check size={16} className="text-[var(--primary-dark)]"/>}
+                      </div>
+                      <span className="text-xs text-[var(--text-muted)]">メモの本文をすべて表示します。</span>
+                    </button>
+                    <button onClick={() => { setDisplayMode('partial'); setActiveSettingsModal(null); }} className={`w-full flex flex-col p-4 rounded-2xl border-2 transition-all text-left ${displayMode === 'partial' ? 'border-[var(--primary)] bg-[var(--sidebar-bg)]' : 'border-[var(--border)] bg-[var(--bg-color)] md:hover:bg-white/40'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-sm text-[var(--text-main)]">部分表示</span>
+                        {displayMode === 'partial' && <Check size={16} className="text-[var(--primary-dark)]"/>}
+                      </div>
+                      <span className="text-xs text-[var(--text-muted)]">タイトルと本文の1行目のみを表示します。</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Backup Detail Modal */}
+            {activeSettingsModal === 'backup' && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[160] flex items-end justify-center sm:items-center p-0 sm:p-4" onClick={() => setActiveSettingsModal(null)}>
+                <div className="bg-[var(--card-bg)] w-full max-w-lg rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl p-6 border-t sm:border border-[var(--border)] max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-10 sm:zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-6 px-2">
+                    <h2 className="text-xl font-bold flex gap-3 items-center text-[var(--text-main)]">
+                      {backupTab === 'text' ? <Database size={24} className="text-[var(--primary-dark)]"/> : <RefreshCw size={24} className="text-[var(--primary-dark)]"/>}
+                      {backupTab === 'text' ? 'バックアップと復元' : 'GAS連携と同期'}
+                    </h2>
+                    <button onClick={() => setActiveSettingsModal(null)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500 transition-colors">
+                      <X size={20}/>
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                    {backupTab === 'text' ? (
+                      <div className="space-y-6">
+                        <div className="bg-[var(--bg-color)] p-5 rounded-[1.5rem] border border-[var(--border)] shadow-sm">
+                          <h3 className="font-bold text-sm mb-4 text-[var(--text-main)] flex items-center gap-2"><Copy size={16}/>データのエクスポート</h3>
+                          <button onClick={handleExportText} className="w-full py-4 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all">すべてコピーする</button>
+                        </div>
+                        <div className="bg-[var(--bg-color)] p-5 rounded-[1.5rem] border border-[var(--border)] shadow-sm text-center">
+                          <h3 className="font-bold text-sm mb-2 text-[var(--text-main)] flex items-center justify-center gap-2"><Download size={16}/>データのインポート</h3>
+                          <p className="text-[10px] text-red-500 mb-4 font-bold">※現在のデータや設定はすべて上書きされます。</p>
+                          <textarea 
+                            value={importText} 
+                            onChange={e => setImportText(e.target.value)} 
+                            className="w-full h-32 p-4 rounded-2xl bg-[var(--card-bg)] border border-[var(--border)] text-xs mb-4 focus:ring-4 focus:ring-[var(--primary)]/20 transition-all outline-none text-[var(--text-main)] shadow-inner text-left font-mono" 
+                            placeholder="コピーしたJSONテキストを貼り付けてください"
+                          />
+                          <button onClick={handleImportText} disabled={!importText.trim()} className="w-full py-4 bg-red-400 text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-red-500 transition-all disabled:opacity-50">読み込んで上書きする</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {!showGasSetup ? (
+                          <div className="text-center py-10 px-4 bg-[var(--bg-color)] rounded-[1.5rem] border border-[var(--border)] shadow-sm">
+                            <h4 className="font-bold text-sm mb-4 flex items-center justify-center gap-2 text-[var(--text-main)]"><Database size={16}/>GAS連携設定</h4>
+                            <p className="text-xs text-[var(--text-main)] mb-6 font-bold leading-relaxed">
+                              この機能は、Google Apps Script (GAS) を利用してご自身のGoogleスプレッドシートにデータを保存・同期する上級者向けの機能です。<br/><br/>
+                              <span className="text-red-500">※PCブラウザでの設定作業が必要になります。操作手順がわかる方のみご利用ください。</span>
+                            </p>
+                            <label className="flex items-center justify-center gap-2 mb-6 cursor-pointer">
+                              <input type="checkbox" checked={gasConsentChecked} onChange={e => setGasConsentChecked(e.target.checked)} className="w-4 h-4 accent-[var(--primary)]" />
+                              <span className="text-xs font-bold text-[var(--text-main)]">理解した上で設定に進む</span>
+                            </label>
+                            <button 
+                              onClick={() => { setShowGasSetup(true); localStorage.setItem('memoApp_showGasSetup', 'true'); }} 
+                              disabled={!gasConsentChecked}
+                              className="w-full py-4 rounded-2xl font-bold text-sm bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              設定画面を開く
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="bg-[var(--bg-color)] p-6 rounded-[1.5rem] border border-[var(--border)] shadow-sm text-[var(--text-main)] animate-in fade-in zoom-in duration-200">
+                            <div className="flex justify-between items-center mb-4">
+                              <h4 className="font-bold text-sm flex items-center gap-2"><Database size={16}/>連携設定</h4>
+                              <button onClick={() => setShowGasInstructions(true)} className="text-xs font-bold text-[var(--primary-dark)] flex items-center gap-1 md:hover:underline bg-[var(--card-bg)] px-3 py-1.5 rounded-xl shadow-sm border border-[var(--border)]"><HelpCircle size={12}/>設定手順</button>
+                            </div>
+                            
+                            <p className="text-xs text-[var(--text-muted)] mb-2 font-bold">デプロイしたGASのURL</p>
+                            <div className="relative mb-4">
+                              <input 
+                                value={gasUrl} 
+                                onChange={e => { setGasUrl(e.target.value); setHasSynced(false); }} 
+                                className="w-full p-4 pr-12 rounded-xl bg-[var(--card-bg)] border border-[var(--border)] text-xs text-[var(--text-main)] outline-none focus:ring-2 focus:ring-[var(--primary)] shadow-sm font-mono" 
+                                placeholder="https://script.google.com/macros/s/.../exec"
+                              />
+                              {gasUrl && (
+                                <button onClick={() => { setGasUrl(''); setHasSynced(false); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[var(--text-muted)] md:hover:text-red-500 bg-transparent rounded-full transition-colors" title="URLをクリア">
+                                  <X size={16} />
+                                </button>
+                              )}
+                            </div>
+
+                            <p className="text-xs text-[var(--text-muted)] mb-4 leading-relaxed">
+                              URLを入力後、ボタンを押して通信テストを行ってください。<br/>
+                              <span className="text-red-500 font-bold">通信に成功すると自動同期が有効になります。</span>
+                            </p>
+
+                            <div className="relative flex gap-3 mt-4">
+                               {syncSuccessMsg && (
+                                 <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-[var(--primary-dark)] text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md animate-in fade-in slide-in-from-bottom-2 whitespace-nowrap z-10">
+                                   {syncSuccessMsg}
+                                   <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-[var(--primary-dark)] rotate-45"></div>
+                                 </div>
+                               )}
+                               <button onClick={() => hasSynced ? syncWithGas('save', gasUrl, false) : handleInitialSaveClick()} disabled={isSaving || !gasUrl} className="flex-1 py-4 px-2 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+                                 <Upload size={18} className="shrink-0"/>
+                                 <span className="text-center leading-tight whitespace-nowrap">データを<br className="sm:hidden"/>保存</span>
+                               </button>
+                               <button onClick={() => syncWithGas('load')} disabled={isSaving || !gasUrl} className="flex-1 py-4 px-2 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+                                 <Download size={18} className="shrink-0"/>
+                                 <span className="text-center leading-tight whitespace-nowrap">データを<br className="sm:hidden"/>読み込む</span>
+                               </button>
+                            </div>
+
+                            {/* Error Message Display */}
+                            {syncErrorMsg && (
+                              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl relative animate-in fade-in slide-in-from-top-2">
+                                <h5 className="text-xs font-bold text-red-600 mb-2">エラー詳細</h5>
+                                <textarea 
+                                  readOnly 
+                                  value={syncErrorMsg} 
+                                  className="w-full h-24 text-[10px] text-red-800 bg-transparent outline-none resize-none font-mono custom-scrollbar" 
+                                />
+                                <button onClick={() => {
+                                  navigator.clipboard.writeText(syncErrorMsg);
+                                  showToast('エラー内容をコピーしました');
+                                }} className="absolute top-3 right-3 p-1.5 bg-red-100 text-red-600 rounded-md md:hover:bg-red-200 transition-colors" title="コピー">
+                                  <Copy size={14}/>
+                                </button>
+                              </div>
+                            )}
+
+                          </div>
+                        )}
+
+                        {showGasSetup && hasSynced && (
+                          <div className="bg-[var(--bg-color)] p-6 rounded-[1.5rem] border border-[var(--primary-dark)] shadow-md text-[var(--text-main)] animate-in fade-in slide-in-from-bottom-4 duration-300 mt-4">
+                            <div className="flex items-center gap-2 mb-6 text-[var(--primary-dark)]">
+                              <Check size={20} className="bg-[var(--primary-dark)] text-white rounded-full p-1" />
+                              <h4 className="font-bold text-sm">同期準備完了</h4>
+                            </div>
+
+                            <div className="flex justify-between items-center mb-4">
+                              <h5 className="font-bold text-sm flex items-center gap-1.5"><Clock size={16}/>自動同期の設定</h5>
+                              <span className="text-xs font-bold text-[var(--text-main)] px-3 py-1.5 bg-[var(--card-bg)] rounded-lg border border-[var(--border)] shadow-sm">
+                                現在：{autoSaveInterval === 0 ? 'オフ' : `${autoSaveInterval}分おき`}
+                              </span>
+                            </div>
+                            <select value={autoSaveInterval} onChange={e => setAutoSaveInterval(Number(e.target.value))} className="w-full p-4 rounded-xl bg-[var(--card-bg)] border-2 border-[var(--border)] text-sm font-bold text-[var(--text-main)] focus:ring-4 focus:ring-[var(--primary)]/20 outline-none transition-all cursor-pointer shadow-sm">
+                               <option value={0} className="bg-[var(--bg-color)] text-[var(--text-main)]">オフに設定する</option>
+                               <option value={10} className="bg-[var(--bg-color)] text-[var(--text-main)]">10分おきに自動保存</option>
+                               <option value={30} className="bg-[var(--bg-color)] text-[var(--text-main)]">30分おきに自動保存</option>
+                               <option value={60} className="bg-[var(--bg-color)] text-[var(--text-main)]">1時間おきに自動保存</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* GAS Overwrite Confirmation Modal */}
+            {gasOverwriteConfirm.isOpen && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[170] flex items-center justify-center p-4" onClick={() => setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 })}>
+                <div className="bg-[var(--card-bg)] rounded-[3rem] shadow-2xl w-full max-w-sm p-10 text-center border border-[var(--border)] transform transition-all animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                  <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6 text-yellow-500 shadow-inner"><AlertTriangle size={40} /></div>
+                  
+                  {gasOverwriteConfirm.step === 1 ? (
+                    <>
+                      <h2 className="text-2xl font-bold mb-4 text-[var(--text-main)]">データが存在します</h2>
+                      <p className="text-sm text-[var(--text-muted)] mb-10 leading-relaxed font-bold">
+                        指定されたスプレッドシートには既にデータが存在します。<br/>
+                        元のデータを読み込みますか？それとも新しい今のデータを保存しますか？
+                      </p>
+                      <div className="flex flex-col gap-3">
+                        <button onClick={() => { syncWithGas('load', gasOverwriteConfirm.pendingGasUrl); setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 }); }} className="w-full py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">既存データを読み込む</button>
+                        <button onClick={() => setGasOverwriteConfirm(prev => ({ ...prev, step: 2 }))} className="w-full py-4 rounded-2xl font-bold bg-[var(--card-bg)] border-2 border-[var(--primary)] text-[var(--primary-dark)] md:hover:bg-[var(--btn-bg)] transition-all shadow-sm">新規にデータを作成</button>
+                        <button onClick={() => setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 })} className="w-full py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] md:hover:bg-[var(--sidebar-hover)] transition-all mt-2">キャンセル</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-xl font-bold mb-4 text-[var(--text-main)]">新規データ作成の確認</h2>
+                      <p className="text-sm text-[var(--text-muted)] mb-10 leading-relaxed font-bold">
+                        現在の状態を新しいデータとしてスプレッドシートに保存します。<br/>
+                        <span className="text-xs font-normal">（元のデータはスプレッドシート上に残ります）</span><br/><br/>
+                        本当によろしいですか？
+                      </p>
+                      <div className="flex flex-col gap-3">
+                        <button onClick={() => { syncWithGas('save', gasOverwriteConfirm.pendingGasUrl, true); setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 }); }} className="w-full py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">新しく保存する</button>
+                        <button onClick={() => setGasOverwriteConfirm(prev => ({ ...prev, step: 1 }))} className="w-full py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] md:hover:bg-[var(--sidebar-hover)] transition-all">戻る</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- Other Modals --- */}
+        {/* --- Folder Edit Fullscreen Modal --- */}
+        {isFolderEditMode && (
+          <div className="fixed inset-0 bg-[var(--bg-color)] z-[150] flex flex-col animate-in fade-in duration-200">
+            <div className="flex items-center px-4 py-4 border-b border-[var(--border)] bg-[var(--card-bg)] shadow-sm">
+              <button onClick={() => setIsFolderEditMode(false)} className="p-2 text-[var(--text-main)] md:hover:bg-[var(--btn-bg)] rounded-full transition-colors mr-2">
+                <ChevronLeft size={28}/>
+              </button>
+              <h2 className="text-xl font-bold text-[var(--text-main)]">フォルダ編集</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 custom-scrollbar pb-24">
+              <div className="max-w-3xl mx-auto space-y-2">
+                {items.filter(i => i.type === 'folder' && i.parentId === 'root').map(folder => (
+                  <FolderEditTreeItem key={folder.id} item={folder} level={0} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showGasInstructions && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setShowGasInstructions(false)}>
+            <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto custom-scrollbar border border-[var(--border)] text-[var(--text-main)]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-xl font-bold flex gap-3 items-center text-[var(--text-main)]"><HelpCircle className="text-[var(--primary-dark)]"/>GAS連携の手順</h2>
+                <button onClick={() => setShowGasInstructions(false)} className="p-2 bg-[var(--bg-color)] rounded-full md:hover:text-red-500 transition-colors text-[var(--modal-close)]"><X size={20}/></button>
+              </div>
+              <div className="space-y-6 text-sm leading-relaxed">
+                <div>
+                  <p className="font-bold text-[var(--primary-dark)] mb-1">1. スプレッドシートの作成</p>
+                  <p className="text-[var(--text-muted)] text-xs">新しいGoogleスプレッドシートを作成し、任意の名前（例：memo_foglia_db）をつけます。</p>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--primary-dark)] mb-1">2. Apps Scriptを開く</p>
+                  <p className="text-[var(--text-muted)] text-xs">上部のメニューから「拡張機能」＞「Apps Script」を選択します。</p>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--primary-dark)] mb-1">3. コードの貼り付けと保存</p>
+                  <p className="text-[var(--text-muted)] text-xs mb-2">エディタの元からあるコードを消し、以下のコードを貼り付けて保存します。</p>
+                  <div className="relative">
+                    <textarea readOnly className="w-full h-32 p-4 text-[10px] font-mono bg-slate-800 text-green-400 rounded-xl outline-none shadow-inner" value={gasCodeString}></textarea>
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(gasCodeString);
+                      showToast('コードをコピーしました');
+                    }} className="absolute top-3 right-3 p-2 bg-white/20 text-white rounded-lg md:hover:bg-white/40"><Copy size={16}/></button>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--primary-dark)] mb-1">4. デプロイ</p>
+                  <p className="text-[var(--text-muted)] text-xs">
+                    右上の「デプロイ」＞「新しいデプロイ」をクリック。<br/>
+                    左上の歯車から「ウェブアプリ」を選び、以下を設定してデプロイします。<br/>
+                    ・アクセスできるユーザー：<span className="font-bold text-red-500">全員</span><br/><br/>
+                    <span className="font-bold text-[var(--text-main)]">※「承認が必要です」と表示された場合：</span><br/>
+                    「権限を確認」→ アカウントを選択 → 「Advanced（詳細）」→ 「（安全ではないページ）に移動」を押して許可を完了させてください。
+                  </p>
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--primary-dark)] mb-1">5. URLの設定</p>
+                  <p className="text-[var(--text-muted)] text-xs">表示された「ウェブアプリのURL」をコピーし、設定画面に貼り付けてください。</p>
+                </div>
+              </div>
+              <button onClick={() => setShowGasInstructions(false)} className="w-full mt-8 py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">閉じる</button>
+            </div>
+          </div>
+        )}
+
+        {folderModal.isOpen && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setFolderModal({ ...folderModal, isOpen: false })}>
+            <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-sm p-8 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+              <h2 className="text-xl font-bold mb-8 text-center text-[var(--text-main)]">{folderModal.type === 'create' ? '新しいフォルダ' : 'フォルダ名を変更'}</h2>
+              <input autoFocus value={folderModal.name} onChange={e => setFolderModal(m => ({ ...m, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddFolder()} className="w-full p-5 rounded-2xl bg-[var(--bg-color)] border-none text-center font-bold mb-8 text-lg text-[var(--text-main)] outline-none focus:ring-4 focus:ring-[var(--primary)]/30 transition-all shadow-inner" placeholder="フォルダ名を入力"/>
+              <div className="flex gap-4">
+                <button onClick={() => setFolderModal({ isOpen: false, type: 'create', folderId: null, name: '' })} className="flex-1 py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] transition-colors">キャンセル</button>
+                <button onClick={handleAddFolder} disabled={!folderModal.name.trim()} className="flex-1 py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all disabled:opacity-50">保存</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {moveModal.isOpen && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setMoveModal({ ...moveModal, isOpen: false })}>
+            <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-md p-6 flex flex-col max-h-[85vh] border border-[var(--border)] overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6 px-4">
+                <h2 className="text-xl font-bold text-[var(--text-main)]">移動先を選択</h2>
+                <button onClick={() => setMoveModal({ isOpen: false, itemId: null, targetFolderId: null })} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500 transition-colors">
+                  <X size={24}/>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto bg-[var(--bg-color)]/50 rounded-3xl p-2 mb-6 custom-scrollbar border border-[var(--border)] shadow-inner">
+                <div 
+                  onClick={() => setMoveModal(m => ({ ...m, targetFolderId: 'root' }))} 
+                  className={`flex items-center py-4 px-3 mx-2 my-1 rounded-2xl cursor-pointer font-bold transition-all ${moveModal.targetFolderId === 'root' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-[var(--text-main)] md:hover:bg-white/50'}`}
+                  style={{ paddingLeft: '0.5rem' }}
+                >
+                  <div className="p-1 mr-1 shrink-0 w-5.5 h-5.5"></div>
+                  <div className="flex-1 flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Home size={18} className="mr-2"/>HOME
+                    </div>
+                    <div className={`flex items-center text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-full ${moveModal.targetFolderId === 'root' ? 'bg-white/20 text-white' : 'bg-[var(--border)]/50 text-[var(--text-muted)]'}`}>
+                      <FileText size={10} className="mr-0.5" />
+                      <span>{items.filter(i => i.type === 'note' && i.parentId === 'root').length}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {items.filter(i => i.type === 'folder' && i.parentId === 'root').map(folder => (
+                    <FolderTreeItem 
+                      key={folder.id} item={folder} level={0} isSelectMode={true} 
+                      onSelect={(id) => setMoveModal(m => ({ ...m, targetFolderId: id }))}
+                      currentTargetId={moveModal.targetFolderId}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-4 px-2">
+                <button onClick={() => setMoveModal({ isOpen: false, itemId: null, targetFolderId: null })} className="flex-1 py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] md:hover:bg-[var(--sidebar-hover)] transition-all">キャンセル</button>
+                <button onClick={() => {
+                  setItems(prev => prev.map(i => i.id === moveModal.itemId ? { ...i, parentId: moveModal.targetFolderId } : i));
+                  setMoveModal({ isOpen: false, itemId: null, targetFolderId: null }); showToast('移動が完了しました');
+                }} className="flex-1 py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg transition-all active:scale-95">移動する</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {themeModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setThemeModal(false)}>
+            <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-sm p-6 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-8 px-4"><h2 className="text-xl font-bold flex items-center gap-3 text-[var(--text-main)]"><Palette size={24} className="text-[var(--primary-dark)]"/>テーマ設定</h2><button onClick={() => setThemeModal(false)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500 transition-all"><X size={24}/></button></div>
+              <div className="space-y-3">
+                {themes.map(t => (
+                  <button key={t.id} onClick={() => setTheme(t.id)} className={`w-full flex items-center justify-between p-5 rounded-[1.5rem] border-2 transition-all ${theme === t.id ? 'border-[var(--primary)] bg-[var(--sidebar-bg)] shadow-md scale-[1.02]' : 'border-transparent bg-[var(--bg-color)] md:hover:bg-white/60'}`}>
+                    <div className="flex items-center gap-4"><div className="w-8 h-8 rounded-full shadow-inner border-2 border-white" style={{ backgroundColor: t.color }} /><span className="font-bold text-sm text-[var(--text-main)]">{t.name}</span></div>
+                    {theme === t.id && <Check size={24} className="text-[var(--primary-dark)]"/>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {fontModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setFontModal(false)}>
+            <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-sm p-6 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-8 px-4"><h2 className="text-xl font-bold flex items-center gap-3 text-[var(--text-main)]"><Type size={24} className="text-[var(--primary-dark)]"/>フォント設定</h2><button onClick={() => setFontModal(false)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500 transition-all"><X size={24}/></button></div>
+              <div className="space-y-3">
+                {fonts.map(f => (
+                  <button key={f.id} onClick={() => setFont(f.id)} className={`w-full flex items-center justify-between p-5 rounded-[1.5rem] border-2 transition-all ${font === f.id ? 'border-[var(--primary)] bg-[var(--sidebar-bg)] shadow-md scale-[1.02]' : 'border-transparent bg-[var(--bg-color)] md:hover:bg-white/60'}`}>
+                    <span className="font-bold text-sm text-[var(--text-main)]" style={{ fontFamily: f.family }}>{f.name}</span>
+                    {font === f.id && <Check size={24} className="text-[var(--primary-dark)]"/>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {deleteConfirm.isOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110] flex items-center justify-center p-4" onClick={() => setDeleteConfirm({ isOpen: false, targetId: null, type: null })}>
+            <div className="bg-[var(--card-bg)] rounded-[3rem] shadow-2xl w-full max-w-sm p-10 text-center border-t-4 border-red-500 transform transition-all animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500 shadow-inner"><Trash2 size={40} /></div>
+              <h2 className="text-2xl font-bold mb-4 text-[var(--text-main)]">削除しますか？</h2>
+              <p className="text-sm text-[var(--text-muted)] mb-10 leading-relaxed font-bold">この操作は取り消せません。</p>
+              <div className="flex flex-col gap-3">
+                <button onClick={executeDelete} className="w-full py-4 rounded-2xl font-bold bg-red-500 text-white shadow-lg md:hover:bg-red-600 transition-all">削除する</button>
+                <button onClick={() => setDeleteConfirm({ isOpen: false, targetId: null, type: null })} className="w-full py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] md:hover:bg-[var(--sidebar-hover)] transition-all">キャンセル</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
