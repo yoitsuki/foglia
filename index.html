@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>foglia</title>
   
   <!-- Tailwind CSS の読み込み -->
@@ -744,7 +744,16 @@
       return (
         <>
           <style>{themeCSS}</style>
-          <div className="flex h-screen overflow-hidden selection:bg-[var(--primary)] selection:text-white relative">
+          <div 
+            className="flex overflow-hidden selection:bg-[var(--primary)] selection:text-white relative w-full"
+            style={{
+              height: '100dvh',
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingLeft: 'env(safe-area-inset-left)',
+              paddingRight: 'env(safe-area-inset-right)'
+            }}
+          >
             
             {/* --- Mobile Sidebar Overlay --- */}
             {isSidebarOpen && (
