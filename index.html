@@ -690,7 +690,6 @@
         const isExpanded = expandedFolders[item.id];
         const siblings = items.filter(i => i.type === 'folder' && i.parentId === item.parentId);
         const sidx = siblings.findIndex(i => i.id === item.id);
-        const memoCount = items.filter(i => i.type === 'note' && i.parentId === item.id).length;
 
         return (
           <div className="font-bold">
@@ -704,10 +703,6 @@
                 </button>
                 <Folder size={18} className="mr-2 opacity-70 shrink-0 text-[var(--primary-dark)]"/>
                 <span className="truncate text-sm text-[var(--text-main)] mr-2">{item.title}</span>
-                <div className="flex items-center text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded-full bg-[var(--border)]/50 text-[var(--text-muted)]">
-                   <FileText size={10} className="mr-0.5" />
-                   <span>{memoCount}</span>
-                </div>
               </div>
 
               <div className="flex items-center gap-0 sm:gap-1 ml-2 shrink-0">
@@ -1243,7 +1238,7 @@
             )}
 
             {folderModal.isOpen && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setFolderModal({ ...folderModal, isOpen: false })}>
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setFolderModal({ ...folderModal, isOpen: false })}>
                 <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-sm p-8 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
                   <h2 className="text-xl font-bold mb-8 text-center text-[var(--text-main)]">{folderModal.type === 'create' ? '新しいフォルダ' : 'フォルダ名を変更'}</h2>
                   <input autoFocus value={folderModal.name} onChange={e => setFolderModal(m => ({ ...m, name: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleAddFolder()} className="w-full p-5 rounded-2xl bg-[var(--bg-color)] border-none text-center font-bold mb-8 text-lg text-[var(--text-main)] outline-none focus:ring-4 focus:ring-[var(--primary)]/30 transition-all shadow-inner" placeholder="フォルダ名を入力"/>
@@ -1256,7 +1251,7 @@
             )}
 
             {moveModal.isOpen && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setMoveModal({ ...moveModal, isOpen: false })}>
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setMoveModal({ ...moveModal, isOpen: false })}>
                 <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-md p-6 flex flex-col max-h-[85vh] border border-[var(--border)] overflow-hidden" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-6 px-4">
                     <h2 className="text-xl font-bold text-[var(--text-main)]">移動先を選択</h2>
@@ -1303,7 +1298,7 @@
             )}
 
             {themeModal && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setThemeModal(false)}>
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setThemeModal(false)}>
                 <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-sm p-6 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-8 px-4"><h2 className="text-xl font-bold flex items-center gap-3 text-[var(--text-main)]"><Palette size={24} className="text-[var(--primary-dark)]"/>テーマ設定</h2><button onClick={() => setThemeModal(false)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500 transition-all"><X size={24}/></button></div>
                   <div className="space-y-3">
@@ -1319,7 +1314,7 @@
             )}
 
             {fontModal && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setFontModal(false)}>
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setFontModal(false)}>
                 <div className="bg-[var(--card-bg)] rounded-[2.5rem] shadow-2xl w-full max-w-sm p-6 border border-[var(--border)]" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center mb-8 px-4"><h2 className="text-xl font-bold flex items-center gap-3 text-[var(--text-main)]"><Type size={24} className="text-[var(--primary-dark)]"/>フォント設定</h2><button onClick={() => setFontModal(false)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500 transition-all"><X size={24}/></button></div>
                   <div className="space-y-3">
@@ -1335,7 +1330,7 @@
             )}
 
             {deleteConfirm.isOpen && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110] flex items-center justify-center p-4" onClick={() => setDeleteConfirm({ isOpen: false, targetId: null, type: null })}>
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={() => setDeleteConfirm({ isOpen: false, targetId: null, type: null })}>
                 <div className="bg-[var(--card-bg)] rounded-[3rem] shadow-2xl w-full max-w-sm p-10 text-center border-t-4 border-red-500 transform transition-all animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
                   <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500 shadow-inner"><Trash2 size={40} /></div>
                   <h2 className="text-2xl font-bold mb-4 text-[var(--text-main)]">削除しますか？</h2>
