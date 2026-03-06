@@ -35,7 +35,7 @@
       Menu, X, ChevronRight, ChevronDown, ChevronLeft,
       Copy, Check, Palette, Home, Save, Settings, Monitor,
       ArrowUp, ArrowDown, Edit3, Type, Database, Upload, Download, RefreshCw, Clock, Link,
-      ArrowRight, FolderInput, HelpCircle, Share2, Star, GripVertical, ArrowUpDown, ArrowLeft, AlertTriangle, Leaf
+      ArrowRight, FolderInput, HelpCircle, Share2, Star, GripVertical, ArrowUpDown, ArrowLeft, AlertTriangle, Leaf, MessageSquareText
     } from 'lucide-react';
 
     // --- Theme & Font Definitions ---
@@ -202,7 +202,7 @@
     }`;
 
     // --- Memo Card Component ---
-    function MemoCard({ memo, isEditing, displayMode, isMemoEditMode, onStartEdit, onSave, onCancel, onDelete, onMove, onToggleFavorite, onMoveUp, onMoveDown }) {
+    function MemoCard({ memo, isEditing, displayMode, isMemoEditMode, textVariables, onStartEdit, onSave, onCancel, onDelete, onMove, onToggleFavorite, onMoveUp, onMoveDown }) {
       const [editTitle, setEditTitle] = useState(memo.title || '');
       const [editContent, setEditContent] = useState(memo.content || '');
       const [copied, setCopied] = useState(false);
@@ -211,8 +211,38 @@
       useEffect(() => { if (isEditing) { setEditTitle(memo.title || ''); setEditContent(memo.content || ''); } }, [isEditing, memo]);
 
       const handleCopy = () => {
+        let textToCopy = memo.content || '';
+        
+        // 変数（時間帯に応じた挨拶など）の置換処理
+        if (textVariables && textVariables.length > 0) {
+          const now = new Date();
+          const currentStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+          
+          textVariables.forEach(variable => {
+            if (!variable.placeholder) return;
+            let replacement = '';
+            const m = variable.morningStart || '05:00';
+            const d = variable.dayStart || '11:00';
+            const n = variable.nightStart || '18:00';
+            
+            // 現在時刻と設定時間の比較
+            if (currentStr >= m && currentStr < d) {
+              replacement = variable.morningText || '';
+            } else if (currentStr >= d && currentStr < n) {
+              replacement = variable.dayText || '';
+            } else {
+              replacement = variable.nightText || '';
+            }
+            
+            // プレースホルダーをすべて置換（正規表現エスケープ処理込み）
+            const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapeRegExp(variable.placeholder), 'g');
+            textToCopy = textToCopy.replace(regex, replacement);
+          });
+        }
+
         const textArea = document.createElement("textarea");
-        textArea.value = memo.content || '';
+        textArea.value = textToCopy;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
@@ -232,7 +262,7 @@
 
       if (isEditing) {
         return (
-          <div className="bg-[var(--card-bg)] p-5 rounded-3xl shadow-lg border border-[var(--border)] animate-in fade-in zoom-in duration-200">
+          <div className="bg-[var(--card-bg)] p-5 rounded-3xl shadow-lg border border-[var(--border)] mb-4 animate-in fade-in zoom-in duration-200">
             <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full text-lg font-bold mb-3 p-2 border-b-2 border-[var(--bg-color)] bg-transparent focus:outline-none focus:border-[var(--primary)] text-[var(--text-main)]" placeholder="タイトル" autoFocus />
             <textarea value={editContent} onChange={e => setEditContent(e.target.value)} maxLength={300} className="w-full h-40 p-3 rounded-2xl bg-[var(--bg-color)] border-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--text-main)] resize-none" placeholder="内容を入力 (最大300文字)" />
             <div className="flex justify-between items-center mt-3">
@@ -247,7 +277,7 @@
       }
 
       return (
-        <div className={`flex items-center transition-all duration-300`}>
+        <div className={`flex items-center mb-4 transition-all duration-300`}>
           <div className={`bg-[var(--card-bg)] flex-1 p-5 rounded-[2rem] shadow-sm border border-[var(--border)] relative group md:hover:shadow-md transition-all`}>
             
             {!isMemoEditMode && (
@@ -305,6 +335,22 @@
         } catch { return [{ id: 'root', type: 'folder', parentId: null, title: 'HOME', createdAt: Date.now() }]; }
       });
 
+      const [textVariables, setTextVariables] = useState(() => {
+        try {
+          const saved = localStorage.getItem('memoApp_textVariables');
+          return saved ? JSON.parse(saved) : [{
+            id: generateId(),
+            placeholder: '[挨拶]',
+            morningStart: '05:00',
+            morningText: 'おはようございます',
+            dayStart: '11:00',
+            dayText: 'こんにちは',
+            nightStart: '18:00',
+            nightText: 'こんばんは'
+          }];
+        } catch { return []; }
+      });
+
       const [selectedFolderId, setSelectedFolderId] = useState('root');
       const [theme, setTheme] = useState(() => localStorage.getItem('memoApp_theme') || 'paleblue');
       const [font, setFont] = useState(() => localStorage.getItem('memoApp_font') || 'notoSans');
@@ -349,8 +395,10 @@
       const [gasOverwriteConfirm, setGasOverwriteConfirm] = useState({ isOpen: false, pendingGasUrl: '', step: 1 }); // Safety prompt
 
       const itemsRef = useRef(items);
+      const textVariablesRef = useRef(textVariables);
       
       useEffect(() => { itemsRef.current = items; }, [items]);
+      useEffect(() => { textVariablesRef.current = textVariables; }, [textVariables]);
 
       const showToast = (msg) => { setToastMessage(''); setTimeout(() => setToastMessage(msg), 10); };
 
@@ -376,7 +424,8 @@
               items: itemsRef.current,
               theme: theme,
               font: font,
-              settings: { displayMode, autoSaveInterval }
+              settings: { displayMode, autoSaveInterval },
+              textVariables: textVariablesRef.current
             }) : null
           };
 
@@ -409,11 +458,12 @@
                   if (parsed.theme) setTheme(parsed.theme);
                   if (parsed.font) setFont(parsed.font);
                   if (parsed.settings) {
-                    if (parsed.settings.displayMode) setDisplayMode(parsed.settings.displayMode);
-                    if (parsed.settings.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.settings.autoSaveInterval);
-                  }
+                  if (parsed.settings.displayMode) setDisplayMode(parsed.settings.displayMode);
+                  if (parsed.settings.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.settings.autoSaveInterval);
                 }
-                showToast('スプレッドシートから読み込みました');
+                if (parsed.textVariables) setTextVariables(parsed.textVariables);
+              }
+              showToast('スプレッドシートから読み込みました');
                 setSyncSuccessMsg('読込完了！');
                 setTimeout(() => setSyncSuccessMsg(''), 3000);
               } catch(e) { 
@@ -484,6 +534,7 @@
       }, []);
 
       useEffect(() => { localStorage.setItem('memoApp_data', JSON.stringify(items)); }, [items]);
+      useEffect(() => { localStorage.setItem('memoApp_textVariables', JSON.stringify(textVariables)); }, [textVariables]);
       useEffect(() => { localStorage.setItem('memoApp_theme', theme); document.documentElement.setAttribute('data-theme', theme); }, [theme]);
       useEffect(() => { localStorage.setItem('memoApp_font', font); document.documentElement.setAttribute('data-font', font); }, [font]);
       useEffect(() => { localStorage.setItem('memoApp_displayMode', displayMode); }, [displayMode]);
@@ -499,7 +550,7 @@
       }, [autoSaveInterval, gasUrl, hasSynced, lastSavedAt, items, theme, font, displayMode]); 
 
       const handleExportText = () => {
-        const data = JSON.stringify({ items, theme, font, settings: { displayMode, autoSaveInterval } }, null, 2);
+        const data = JSON.stringify({ items, theme, font, settings: { displayMode, autoSaveInterval }, textVariables }, null, 2);
         const textArea = document.createElement("textarea");
         textArea.value = data;
         document.body.appendChild(textArea);
@@ -522,6 +573,7 @@
               if (data.settings.displayMode) setDisplayMode(data.settings.displayMode);
               if (data.settings.autoSaveInterval !== undefined) setAutoSaveInterval(data.settings.autoSaveInterval);
             }
+            if (data.textVariables) setTextVariables(data.textVariables);
           }
           showToast('データを読み込みました');
           setImportText('');
@@ -561,6 +613,27 @@
         setItems(prev => [{ id: nid, type: 'note', parentId: selectedFolderId, title: '', content: '', isFavorite: false, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]);
         setEditingMemoId(nid);
         setIsMemoEditMode(false); 
+      };
+
+      const handleAddVariable = () => {
+        setTextVariables(prev => [...prev, {
+          id: generateId(),
+          placeholder: '',
+          morningStart: '05:00',
+          morningText: '',
+          dayStart: '11:00',
+          dayText: '',
+          nightStart: '18:00',
+          nightText: ''
+        }]);
+      };
+
+      const updateVariable = (id, field, value) => {
+        setTextVariables(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
+      };
+
+      const handleDeleteVariable = (id) => {
+        setTextVariables(prev => prev.filter(v => v.id !== id));
       };
 
       const executeDelete = () => {
@@ -694,30 +767,30 @@
         return (
           <div className="font-bold">
             <div 
-              className={`flex items-center justify-between py-2 px-3 mx-2 my-1 rounded-2xl bg-[var(--card-bg)] border border-[var(--border)] shadow-sm overflow-x-auto`}
+              className={`flex flex-col lg:flex-row lg:items-center justify-between py-3 px-3 mx-2 my-2 rounded-2xl bg-[var(--card-bg)] border border-[var(--border)] shadow-sm gap-2 lg:gap-0`}
               style={{ marginLeft: `${level * 1.5}rem` }}
             >
               <div className="flex items-center flex-1 min-w-0 pr-2">
-                <button className="p-1 mr-1 rounded-full md:hover:bg-black/10 transition-colors" onClick={(e) => { e.stopPropagation(); setExpandedFolders(ex => ({...ex, [item.id]: !isExpanded})); }}>
+                <button className="p-1 mr-1 rounded-full md:hover:bg-black/10 transition-colors shrink-0" onClick={(e) => { e.stopPropagation(); setExpandedFolders(ex => ({...ex, [item.id]: !isExpanded})); }}>
                   {hasChildren ? (isExpanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>) : <span className="w-3.5"/>}
                 </button>
                 <Folder size={18} className="mr-2 opacity-70 shrink-0 text-[var(--primary-dark)]"/>
                 <span className="truncate text-sm text-[var(--text-main)] mr-2">{item.title}</span>
               </div>
 
-              <div className="flex items-center gap-0 sm:gap-1 ml-2 shrink-0">
-                <button onClick={() => handleFolderIndent(item.id, 'out')} disabled={item.parentId === 'root'} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${item.parentId === 'root' ? 'opacity-20 cursor-not-allowed' : ''}`} title="左へ移動 (階層上げる)"><ArrowLeft size={16}/></button>
-                <button onClick={() => handleFolderIndent(item.id, 'in')} disabled={sidx === 0} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : ''}`} title="右へ移動 (子フォルダにする)"><ArrowRight size={16}/></button>
+              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 overflow-x-auto pb-1 lg:pb-0 w-full lg:w-auto custom-scrollbar">
+                <button onClick={() => handleFolderIndent(item.id, 'out')} disabled={item.parentId === 'root'} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors shrink-0 ${item.parentId === 'root' ? 'opacity-20 cursor-not-allowed' : ''}`} title="左へ移動 (階層上げる)"><ArrowLeft size={16}/></button>
+                <button onClick={() => handleFolderIndent(item.id, 'in')} disabled={sidx === 0} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors shrink-0 ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : ''}`} title="右へ移動 (子フォルダにする)"><ArrowRight size={16}/></button>
                 
-                <div className="w-px h-5 bg-[var(--border)] mx-1" />
+                <div className="w-px h-5 bg-[var(--border)] mx-1 shrink-0" />
                 
-                <button onClick={() => handleFolderMoveOrder(item.id, 'up')} disabled={sidx === 0} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : ''}`} title="上へ移動"><ArrowUp size={16}/></button>
-                <button onClick={() => handleFolderMoveOrder(item.id, 'down')} disabled={sidx === siblings.length - 1} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors ${sidx === siblings.length - 1 ? 'opacity-20 cursor-not-allowed' : ''}`} title="下へ移動"><ArrowDown size={16}/></button>
+                <button onClick={() => handleFolderMoveOrder(item.id, 'up')} disabled={sidx === 0} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors shrink-0 ${sidx === 0 ? 'opacity-20 cursor-not-allowed' : ''}`} title="上へ移動"><ArrowUp size={16}/></button>
+                <button onClick={() => handleFolderMoveOrder(item.id, 'down')} disabled={sidx === siblings.length - 1} className={`p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors shrink-0 ${sidx === siblings.length - 1 ? 'opacity-20 cursor-not-allowed' : ''}`} title="下へ移動"><ArrowDown size={16}/></button>
 
-                <div className="w-px h-5 bg-[var(--border)] mx-1" />
+                <div className="w-px h-5 bg-[var(--border)] mx-1 shrink-0" />
 
-                <button onClick={() => setFolderModal({ isOpen: true, type: 'edit', folderId: item.id, name: item.title })} className="p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors" title="名前を変更"><Edit2 size={16}/></button>
-                <button onClick={() => setDeleteConfirm({ isOpen: true, targetId: item.id, type: 'folder' })} className="p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-red-400 transition-colors" title="削除"><Trash2 size={16}/></button>
+                <button onClick={() => setFolderModal({ isOpen: true, type: 'edit', folderId: item.id, name: item.title })} className="p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-[var(--primary-dark)] transition-colors shrink-0" title="名前を変更"><Edit2 size={16}/></button>
+                <button onClick={() => setDeleteConfirm({ isOpen: true, targetId: item.id, type: 'folder' })} className="p-1.5 sm:p-2 rounded-full md:hover:bg-[var(--btn-bg)] text-red-400 transition-colors shrink-0" title="削除"><Trash2 size={16}/></button>
               </div>
             </div>
             {isExpanded && hasChildren && (
@@ -866,13 +939,14 @@
                       </div>
                     )
                   ) : (
-                    <div className="flex flex-col gap-4" onDragOver={e => e.preventDefault()}>
+                    <div className="" onDragOver={e => e.preventDefault()}>
                       {visibleMemos.map((note) => (
                         <MemoCard 
                           key={note.id} memo={note} 
                           isEditing={editingMemoId === note.id}
                           isMemoEditMode={isMemoEditMode}
                           displayMode={displayMode}
+                          textVariables={textVariables}
                           onStartEdit={() => setEditingMemoId(note.id)}
                           onSave={(up) => { setItems(prev => prev.map(i => i.id === note.id ? {...i, ...up, updatedAt: Date.now()} : i)); setEditingMemoId(null); showToast('保存しました'); }}
                           onCancel={() => { setEditingMemoId(null); if (!note.title && !note.content) setItems(prev => prev.filter(i => i.id !== note.id)); }}
@@ -926,6 +1000,23 @@
                        </div>
                     </div>
 
+                    {/* Automatic Text Variables Section */}
+                    <div className="space-y-2">
+                       <h3 className="text-xs font-bold text-[var(--text-muted)] ml-4">自動変換</h3>
+                       <div className="bg-[var(--card-bg)] rounded-[1.5rem] overflow-hidden border border-[var(--border)] shadow-sm">
+                         <button onClick={() => setActiveSettingsModal('variables')} className="w-full flex items-center justify-between p-4 md:hover:bg-[var(--btn-bg)] transition-colors text-left">
+                           <div className="flex items-center gap-4">
+                             <MessageSquareText size={22} className="text-[var(--text-main)] opacity-70" />
+                             <div>
+                               <div className="font-bold text-[var(--text-main)] text-sm">定型文の自動変換設定</div>
+                               <div className="text-xs text-[var(--text-muted)]">時間帯によって挨拶などを自動置換</div>
+                             </div>
+                           </div>
+                           <ChevronRight size={20} className="text-[var(--text-muted)] opacity-50" />
+                         </button>
+                       </div>
+                    </div>
+
                     {/* Data & Backup Section */}
                     <div className="space-y-2">
                        <h3 className="text-xs font-bold text-[var(--text-muted)] ml-4">データと同期</h3>
@@ -955,6 +1046,56 @@
 
                   </div>
                 </div>
+
+                {/* Text Variables Detail Modal */}
+                {activeSettingsModal === 'variables' && (
+                  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[160] flex items-end justify-center sm:items-center p-0 sm:p-4" onClick={() => setActiveSettingsModal(null)}>
+                    <div className="bg-[var(--card-bg)] w-full max-w-lg rounded-t-[2rem] sm:rounded-[2.5rem] shadow-2xl p-6 border-t sm:border border-[var(--border)] animate-in slide-in-from-bottom-10 sm:zoom-in duration-200 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                      <div className="flex justify-between items-center mb-6 shrink-0">
+                        <h2 className="text-lg font-bold text-[var(--text-main)]">定型文の自動変換</h2>
+                        <button onClick={() => setActiveSettingsModal(null)} className="p-2 bg-[var(--bg-color)] rounded-full text-[var(--modal-close)] md:hover:text-red-500"><X size={20}/></button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4 pb-10">
+                        <p className="text-xs text-[var(--text-muted)] font-bold mb-2">コピー時に、設定した「変換する言葉」を現在の時間帯に合わせたテキストに自動で置き換えます。</p>
+                        {textVariables.map(tv => (
+                          <div key={tv.id} className="p-4 bg-[var(--bg-color)] rounded-[1.5rem] border border-[var(--border)] relative shadow-sm">
+                             <button onClick={()=> handleDeleteVariable(tv.id)} className="absolute top-4 right-4 text-red-400 p-2 bg-[var(--card-bg)] rounded-full md:hover:bg-red-500 md:hover:text-white transition-colors" title="削除"><Trash2 size={14}/></button>
+                             
+                             <div className="mb-4 pr-10">
+                               <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-1">変換する言葉 (例: [挨拶])</label>
+                               <input value={tv.placeholder} onChange={e => updateVariable(tv.id, 'placeholder', e.target.value)} className="w-full p-3 text-sm font-bold text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" placeholder="[挨拶]" />
+                             </div>
+
+                             <div className="mb-3">
+                               <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-1">朝 (開始時間とテキスト)</label>
+                               <div className="flex gap-2">
+                                 <input type="time" value={tv.morningStart} onChange={e => updateVariable(tv.id, 'morningStart', e.target.value)} className="w-[110px] shrink-0 p-2.5 text-xs font-bold text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" />
+                                 <input value={tv.morningText} onChange={e => updateVariable(tv.id, 'morningText', e.target.value)} className="flex-1 min-w-0 p-2.5 text-xs text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" placeholder="おはようございます" />
+                               </div>
+                             </div>
+
+                             <div className="mb-3">
+                               <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-1">昼 (開始時間とテキスト)</label>
+                               <div className="flex gap-2">
+                                 <input type="time" value={tv.dayStart} onChange={e => updateVariable(tv.id, 'dayStart', e.target.value)} className="w-[110px] shrink-0 p-2.5 text-xs font-bold text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" />
+                                 <input value={tv.dayText} onChange={e => updateVariable(tv.id, 'dayText', e.target.value)} className="flex-1 min-w-0 p-2.5 text-xs text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" placeholder="こんにちは" />
+                               </div>
+                             </div>
+
+                             <div className="mb-1">
+                               <label className="text-[10px] font-bold text-[var(--text-muted)] block mb-1">夜 (開始時間とテキスト)</label>
+                               <div className="flex gap-2">
+                                 <input type="time" value={tv.nightStart} onChange={e => updateVariable(tv.id, 'nightStart', e.target.value)} className="w-[110px] shrink-0 p-2.5 text-xs font-bold text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" />
+                                 <input value={tv.nightText} onChange={e => updateVariable(tv.id, 'nightText', e.target.value)} className="flex-1 min-w-0 p-2.5 text-xs text-[var(--text-main)] rounded-xl bg-[var(--card-bg)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none" placeholder="こんばんは" />
+                               </div>
+                             </div>
+                          </div>
+                        ))}
+                        <button onClick={handleAddVariable} className="w-full py-4 flex justify-center items-center gap-2 border-2 border-dashed border-[var(--primary-dark)] text-[var(--primary-dark)] font-bold rounded-2xl md:hover:bg-[var(--sidebar-hover)] transition-colors"><Plus size={18}/>新しいルールを追加</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Display Mode Detail Modal */}
                 {activeSettingsModal === 'display' && (
