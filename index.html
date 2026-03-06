@@ -232,7 +232,7 @@
 
       if (isEditing) {
         return (
-          <div className="bg-[var(--card-bg)] p-5 rounded-3xl shadow-lg border border-[var(--border)] mb-4 animate-in fade-in zoom-in duration-200">
+          <div className="bg-[var(--card-bg)] p-5 rounded-3xl shadow-lg border border-[var(--border)] animate-in fade-in zoom-in duration-200">
             <input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full text-lg font-bold mb-3 p-2 border-b-2 border-[var(--bg-color)] bg-transparent focus:outline-none focus:border-[var(--primary)] text-[var(--text-main)]" placeholder="タイトル" autoFocus />
             <textarea value={editContent} onChange={e => setEditContent(e.target.value)} maxLength={300} className="w-full h-40 p-3 rounded-2xl bg-[var(--bg-color)] border-none focus:ring-2 focus:ring-[var(--primary)] text-[var(--text-main)] resize-none" placeholder="内容を入力 (最大300文字)" />
             <div className="flex justify-between items-center mt-3">
@@ -247,7 +247,7 @@
       }
 
       return (
-        <div className={`flex items-center mb-4 transition-all duration-300`}>
+        <div className={`flex items-center transition-all duration-300`}>
           <div className={`bg-[var(--card-bg)] flex-1 p-5 rounded-[2rem] shadow-sm border border-[var(--border)] relative group md:hover:shadow-md transition-all`}>
             
             {!isMemoEditMode && (
@@ -871,7 +871,7 @@
                       </div>
                     )
                   ) : (
-                    <div className="space-y-0" onDragOver={e => e.preventDefault()}>
+                    <div className="flex flex-col gap-4" onDragOver={e => e.preventDefault()}>
                       {visibleMemos.map((note) => (
                         <MemoCard 
                           key={note.id} memo={note} 
