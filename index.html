@@ -349,7 +349,6 @@
       const [gasOverwriteConfirm, setGasOverwriteConfirm] = useState({ isOpen: false, pendingGasUrl: '', step: 1 }); // Safety prompt
 
       const itemsRef = useRef(items);
-      const initialLoadDone = useRef(false);
       
       useEffect(() => { itemsRef.current = items; }, [items]);
 
@@ -481,10 +480,6 @@
         
         if (paramGas && paramGas !== gasUrl) {
           setGasUrl(paramGas);
-          syncWithGas('load', paramGas);
-        } else if (gasUrl && hasSynced && !initialLoadDone.current) {
-          initialLoadDone.current = true;
-          syncWithGas('load', gasUrl);
         }
       }, []);
 
