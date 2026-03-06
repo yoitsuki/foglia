@@ -558,8 +558,25 @@
         }
       }, [autoSaveInterval, gasUrl, hasSynced, lastSavedAt, items, theme, font, displayMode]); 
 
-      const handleExportText = () => {
+      const handleExportText = async () => {
         const data = JSON.stringify({ items, theme, font, settings: { displayMode, autoSaveInterval }, textVariables }, null, 2);
+        
+        // Web Share API を使用して共有シートを表示 (対応ブラウザのみ)
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: 'foglia バックアップデータ',
+              text: data
+            });
+            return; // 共有シートが正常に開いた場合はここで終了
+          } catch (e) {
+            // キャンセルされた場合は何もしない。それ以外のエラーならクリップボードへ。
+            if (e.name === 'AbortError') return;
+            console.log('Share API error, fallback to clipboard', e);
+          }
+        }
+
+        // 共有シートに非対応の場合、またはエラー時のフォールバック（クリップボードコピー）
         const textArea = document.createElement("textarea");
         textArea.value = data;
         document.body.appendChild(textArea);
@@ -1153,9 +1170,12 @@
                         {backupTab === 'text' ? (
                           <div className="space-y-6">
                             <div className="bg-[var(--bg-color)] p-5 rounded-[1.5rem] border border-[var(--border)] shadow-sm">
-                              <h3 className="font-bold text-sm mb-4 text-[var(--text-main)] flex items-center gap-2"><Copy size={16}/>データのエクスポート</h3>
+                              <h3 className="font-bold text-sm mb-4 text-[var(--text-main)] flex items-center gap-2"><Share2 size={16}/>データのエクスポート</h3>
                               <div className="relative">
-                                <button onClick={handleExportText} className="w-full py-4 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all relative">すべてコピーする</button>
+                                <button onClick={handleExportText} className="w-full flex justify-center items-center gap-2 py-4 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all relative">
+                                  <Share2 size={18} />
+                                  データを共有 / コピー
+                                </button>
                                 {copiedId === 'export' && (
                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-700 text-white text-[10px] font-bold px-2 py-1 rounded-lg shadow-md whitespace-nowrap animate-in fade-in slide-in-from-bottom-2 z-10 pointer-events-none">
                                      コピーしました！
