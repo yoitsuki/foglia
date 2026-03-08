@@ -434,6 +434,7 @@
       const [theme, setTheme] = useState(() => localStorage.getItem('memoApp_theme') || 'paleblue');
       const [font, setFont] = useState(() => localStorage.getItem('memoApp_font') || 'notoSans');
       const [displayMode, setDisplayMode] = useState(() => localStorage.getItem('memoApp_displayMode') || 'full'); 
+      const [cloudUpdatedAt, setCloudUpdatedAt] = useState(() => Number(localStorage.getItem('memoApp_cloudUpdatedAt')) || 0);
       
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [expandedFolders, setExpandedFolders] = useState({ root: true });
@@ -450,7 +451,7 @@
       const [gasUrl, setGasUrl] = useState(() => localStorage.getItem('memoApp_gasUrl') || '');
       const [hasSynced, setHasSynced] = useState(() => localStorage.getItem('memoApp_hasSynced') === 'true');
       const [showGasSetup, setShowGasSetup] = useState(() => (localStorage.getItem('memoApp_gasUrl') || '').trim().length > 0);
-      const [autoSaveInterval, setAutoSaveInterval] = useState(() => Number(localStorage.getItem('memoApp_autoSaveInterval')) || 0);
+      const [autoSaveInterval, setAutoSaveInterval] = useState(() => Number(localStorage.getItem('memoApp_autoSaveInterval')) || 0); // -1 is instant
       const [lastSavedAt, setLastSavedAt] = useState(Date.now());
       const [isSaving, setIsSaving] = useState(false);
       const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
@@ -474,11 +475,21 @@
       const [gasOverwriteConfirm, setGasOverwriteConfirm] = useState({ isOpen: false, pendingGasUrl: '', step: 1 }); // Safety prompt
       const [copiedId, setCopiedId] = useState(null);
 
-      const itemsRef = useRef(items);
-      const textVariablesRef = useRef(textVariables);
+      // Refs for stable access in async/timers
+      const itemsRef = useRef(items); useEffect(() => { itemsRef.current = items; }, [items]);
+      const textVariablesRef = useRef(textVariables); useEffect(() => { textVariablesRef.current = textVariables; }, [textVariables]);
+      const themeRef = useRef(theme); useEffect(() => { themeRef.current = theme; }, [theme]);
+      const fontRef = useRef(font); useEffect(() => { fontRef.current = font; }, [font]);
+      const displayModeRef = useRef(displayMode); useEffect(() => { displayModeRef.current = displayMode; }, [displayMode]);
+      const autoSaveIntervalRef = useRef(autoSaveInterval); useEffect(() => { autoSaveIntervalRef.current = autoSaveInterval; }, [autoSaveInterval]);
+      const cloudUpdatedAtRef = useRef(cloudUpdatedAt);
+      useEffect(() => { 
+        cloudUpdatedAtRef.current = cloudUpdatedAt;
+        localStorage.setItem('memoApp_cloudUpdatedAt', cloudUpdatedAt);
+      }, [cloudUpdatedAt]);
       
-      useEffect(() => { itemsRef.current = items; }, [items]);
-      useEffect(() => { textVariablesRef.current = textVariables; }, [textVariables]);
+      const initialLoadDone = useRef(false);
+      const prevDataStrRef = useRef('');
 
       const showToast = (msg) => { setToastMessage(''); setTimeout(() => setToastMessage(msg), 10); };
 
@@ -500,21 +511,26 @@
       };
 
       // --- GAS Sync Logic ---
-      const syncWithGas = async (action, targetGasUrl = gasUrl, isFirstSync = false) => {
-        if (!targetGasUrl) { showToast('GASのURLを入力してください'); return; }
+      const syncWithGas = async (action, options = {}) => {
+        const { targetGasUrl = gasUrl, isFirstSync = false, isAutoLoad = false, isQuiet = false } = options;
+        if (!targetGasUrl) { if(!isQuiet) showToast('GASのURLを入力してください'); return; }
         
         setIsSaving(true);
-        setSyncErrorMsg(''); // Clear previous errors
+        if (!isQuiet) setSyncErrorMsg('');
+        
+        const now = Date.now();
+        
         try {
           const payload = {
             action: action,
             isFirstSync: isFirstSync,
             data: action === 'save' ? JSON.stringify({
               items: itemsRef.current,
-              theme: theme,
-              font: font,
-              settings: { displayMode, autoSaveInterval },
-              textVariables: textVariablesRef.current
+              theme: themeRef.current,
+              font: fontRef.current,
+              settings: { displayMode: displayModeRef.current, autoSaveInterval: autoSaveIntervalRef.current },
+              textVariables: textVariablesRef.current,
+              cloudUpdatedAt: now
             }) : null
           };
 
@@ -540,35 +556,53 @@
                 }
                 
                 const parsed = JSON.parse(rawData);
-                if (Array.isArray(parsed)) {
-                  setItems(parsed); 
+                const remoteTime = parsed.cloudUpdatedAt || 0;
+                const localTime = cloudUpdatedAtRef.current;
+
+                // 起動時の自動読み込みの場合、クラウド側が古かったり同じならスキップする
+                if (isAutoLoad && remoteTime <= localTime) {
+                  // do nothing (local is up to date)
                 } else {
-                  if (parsed.items) setItems(parsed.items);
-                  if (parsed.theme) setTheme(parsed.theme);
-                  if (parsed.font) setFont(parsed.font);
-                  if (parsed.settings) {
-                  if (parsed.settings.displayMode) setDisplayMode(parsed.settings.displayMode);
-                  if (parsed.settings.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.settings.autoSaveInterval);
+                  if (Array.isArray(parsed)) {
+                    setItems(parsed); 
+                  } else {
+                    if (parsed.items) setItems(parsed.items);
+                    if (parsed.theme) setTheme(parsed.theme);
+                    if (parsed.font) setFont(parsed.font);
+                    if (parsed.settings) {
+                      if (parsed.settings.displayMode) setDisplayMode(parsed.settings.displayMode);
+                      if (parsed.settings.autoSaveInterval !== undefined) setAutoSaveInterval(parsed.settings.autoSaveInterval);
+                    }
+                    if (parsed.textVariables) setTextVariables(parsed.textVariables);
+                    if (parsed.cloudUpdatedAt) setCloudUpdatedAt(parsed.cloudUpdatedAt);
+                  }
+                  if (!isQuiet) {
+                    if (isAutoLoad) {
+                      showToast('他の端末の更新を読み込みました');
+                    } else {
+                      showToast('スプレッドシートから読み込みました');
+                      setSyncSuccessMsg('読込完了！');
+                      setTimeout(() => setSyncSuccessMsg(''), 3000);
+                    }
+                  }
                 }
-                if (parsed.textVariables) setTextVariables(parsed.textVariables);
-              }
-              showToast('スプレッドシートから読み込みました');
-                setSyncSuccessMsg('読込完了！');
-                setTimeout(() => setSyncSuccessMsg(''), 3000);
               } catch(e) { 
                 console.error('Parse Error:', e);
-                setSyncErrorMsg(`データ解析エラー: ${e.message}\n\n対象データ:\n${rawData}`);
-                showToast(`データ解析エラー`); 
+                if (!isQuiet) {
+                  setSyncErrorMsg(`データ解析エラー: ${e.message}\n\n対象データ:\n${rawData}`);
+                  showToast(`データ解析エラー`); 
+                }
               }
             } else if (action === 'save') {
+              setCloudUpdatedAt(now);
               setLastSavedAt(Date.now());
-              showToast('スプレッドシートへ保存しました');
-              setSyncSuccessMsg('保存完了！');
-              setTimeout(() => setSyncSuccessMsg(''), 3000);
+              if (!isQuiet) {
+                showToast('スプレッドシートへ保存しました');
+                setSyncSuccessMsg('保存完了！');
+                setTimeout(() => setSyncSuccessMsg(''), 3000);
+              }
             } else if (action === 'load' && !result.data) {
-              showToast('サーバーにデータがありません');
-            } else {
-              // General success
+              if (!isQuiet && !isAutoLoad) showToast('サーバーにデータがありません');
             }
             
             setHasSynced(true);
@@ -576,13 +610,17 @@
             localStorage.setItem('memoApp_gasUrl', targetGasUrl);
             setGasUrl(targetGasUrl);
           } else {
-            setSyncErrorMsg('通信エラー: ' + (result.message || '不明なエラー'));
-            showToast('通信エラーが発生しました');
+            if (!isQuiet) {
+              setSyncErrorMsg('通信エラー: ' + (result.message || '不明なエラー'));
+              showToast('通信エラーが発生しました');
+            }
           }
         } catch (e) {
           console.error(e);
-          setSyncErrorMsg(`通信エラー: ${e.message}`);
-          showToast(`通信エラーが発生しました`);
+          if (!isQuiet) {
+            setSyncErrorMsg(`通信エラー: ${e.message}`);
+            showToast(`通信エラーが発生しました`);
+          }
         } finally {
           setIsSaving(false);
         }
@@ -602,8 +640,7 @@
           if (result.status === 'success' && result.hasData) {
             setGasOverwriteConfirm({ isOpen: true, pendingGasUrl: gasUrl, step: 1 });
           } else {
-            // No data on server, safe to append
-            syncWithGas('save', gasUrl, true);
+            syncWithGas('save', { targetGasUrl: gasUrl, isFirstSync: true });
           }
         } catch (e) {
           setSyncErrorMsg(`通信エラー。URLを確認してください。\n${e.message}`);
@@ -613,15 +650,22 @@
         }
       };
 
+      // Initial Load & URL Parameter Check
       useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const paramGas = urlParams.get('gas');
         
         if (paramGas && paramGas !== gasUrl) {
           setGasUrl(paramGas);
+          syncWithGas('load', { targetGasUrl: paramGas, isAutoLoad: true, isQuiet: false });
+        } else if (gasUrl && hasSynced && !initialLoadDone.current) {
+          initialLoadDone.current = true;
+          // アプリ起動時に最新データがあれば引っ張ってくる
+          syncWithGas('load', { targetGasUrl: gasUrl, isAutoLoad: true, isQuiet: true });
         }
       }, []);
 
+      // LocalStorage persist
       useEffect(() => { localStorage.setItem('memoApp_data', JSON.stringify(items)); }, [items]);
       useEffect(() => { localStorage.setItem('memoApp_textVariables', JSON.stringify(textVariables)); }, [textVariables]);
       useEffect(() => { localStorage.setItem('memoApp_theme', theme); document.documentElement.setAttribute('data-theme', theme); }, [theme]);
@@ -629,17 +673,35 @@
       useEffect(() => { localStorage.setItem('memoApp_displayMode', displayMode); }, [displayMode]);
       useEffect(() => { localStorage.setItem('memoApp_autoSaveInterval', autoSaveInterval); }, [autoSaveInterval]);
 
+      // Timer based Auto-Sync (10, 30, 60 min)
       useEffect(() => {
         if (autoSaveInterval > 0 && gasUrl && hasSynced) {
           const timer = setInterval(() => {
-            if (Date.now() - lastSavedAt >= autoSaveInterval * 60000) syncWithGas('save', gasUrl, false);
-          }, 30000);
+            syncWithGas('save', { isQuiet: true });
+          }, autoSaveInterval * 60000);
           return () => clearInterval(timer);
         }
-      }, [autoSaveInterval, gasUrl, hasSynced, lastSavedAt, items, theme, font, displayMode]); 
+      }, [autoSaveInterval, gasUrl, hasSynced]); 
+
+      // Instant Auto-Sync (Debounced)
+      useEffect(() => {
+        const currentDataStr = JSON.stringify({ items, theme, font, displayMode, textVariables });
+        
+        if (autoSaveInterval === -1 && gasUrl && hasSynced && !isSaving && initialLoadDone.current) {
+          if (prevDataStrRef.current && prevDataStrRef.current !== currentDataStr) {
+            // 変更があれば3秒後に静かに保存
+            const timer = setTimeout(() => {
+              syncWithGas('save', { isQuiet: true });
+            }, 3000);
+            return () => clearTimeout(timer);
+          }
+        }
+        prevDataStrRef.current = currentDataStr;
+      }, [items, theme, font, displayMode, textVariables, autoSaveInterval, gasUrl, hasSynced, isSaving]);
+
 
       const handleExportText = async () => {
-        const data = JSON.stringify({ items, theme, font, settings: { displayMode, autoSaveInterval }, textVariables }, null, 2);
+        const data = JSON.stringify({ items, theme, font, settings: { displayMode, autoSaveInterval }, textVariables, cloudUpdatedAt }, null, 2);
         
         // Web Share API を使用して共有シートを表示 (対応ブラウザのみ)
         if (navigator.share) {
@@ -681,6 +743,7 @@
               if (data.settings.autoSaveInterval !== undefined) setAutoSaveInterval(data.settings.autoSaveInterval);
             }
             if (data.textVariables) setTextVariables(data.textVariables);
+            if (data.cloudUpdatedAt) setCloudUpdatedAt(data.cloudUpdatedAt);
           }
           showToast('データを読み込みました');
           setImportText('');
@@ -982,7 +1045,7 @@
                   <button onClick={() => setIsSettingsOpen(true)} className="flex flex-col items-center py-2 text-[10px] font-bold text-[var(--text-muted)] md:hover:bg-white/40 md:hover:text-[var(--primary-dark)] rounded-2xl transition-all"><Settings size={18} className="mb-1"/>設定</button>
                 </div>
                 <div className="text-center mt-2 text-[10px] text-[var(--text-muted)] opacity-50 font-bold flex flex-col items-center">
-                  <div className="text-[8px] font-normal mb-0.5 tracking-wider">v0.9.2</div>
+                  <div className="text-[8px] font-normal mb-0.5 tracking-wider">v0.9.3</div>
                   <div>&copy; {new Date().getFullYear()} yoitsuki</div>
                 </div>
               </div>
@@ -1002,7 +1065,7 @@
                 <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                   {hasSynced && (
                     <div className="relative flex items-center justify-center shrink-0">
-                      <button onClick={() => syncWithGas('save', gasUrl, false)} disabled={isSaving} className={`p-2 rounded-full font-bold shadow-sm transition-all active:scale-95 border border-[var(--border)] ${isSaving ? 'bg-[var(--primary)] text-white' : 'bg-[var(--btn-bg)] text-[var(--primary-dark)]'}`} title="手動保存">
+                      <button onClick={() => syncWithGas('save', { targetGasUrl: gasUrl })} disabled={isSaving} className={`p-2 rounded-full font-bold shadow-sm transition-all active:scale-95 border border-[var(--border)] ${isSaving ? 'bg-[var(--primary)] text-white' : 'bg-[var(--btn-bg)] text-[var(--primary-dark)]'}`} title="手動保存">
                         <Save size={18} className={isSaving ? "opacity-50" : ""} />
                       </button>
                       <span className="absolute bottom-full left-0 mb-0.5 text-[8px] leading-none text-[var(--text-muted)] opacity-70 whitespace-nowrap tracking-tighter pointer-events-none">
@@ -1353,11 +1416,11 @@
                                        <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-[var(--primary-dark)] rotate-45"></div>
                                      </div>
                                    )}
-                                   <button onClick={() => hasSynced ? syncWithGas('save', gasUrl, false) : handleInitialSaveClick()} disabled={isSaving || !gasUrl} className="flex-1 py-4 px-2 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+                                   <button onClick={() => hasSynced ? syncWithGas('save', { targetGasUrl: gasUrl }) : handleInitialSaveClick()} disabled={isSaving || !gasUrl} className="flex-1 py-4 px-2 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
                                      <Upload size={18} className="shrink-0"/>
                                      <span className="text-center leading-tight whitespace-nowrap">データを<br className="sm:hidden"/>保存</span>
                                    </button>
-                                   <button onClick={() => syncWithGas('load')} disabled={isSaving || !gasUrl} className="flex-1 py-4 px-2 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
+                                   <button onClick={() => syncWithGas('load', { targetGasUrl: gasUrl })} disabled={isSaving || !gasUrl} className="flex-1 py-4 px-2 bg-[var(--primary)] text-white rounded-2xl font-bold text-sm shadow-md md:hover:bg-[var(--primary-dark)] transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95">
                                      <Download size={18} className="shrink-0"/>
                                      <span className="text-center leading-tight whitespace-nowrap">データを<br className="sm:hidden"/>読み込む</span>
                                    </button>
@@ -1403,11 +1466,12 @@
                                 <div className="flex justify-between items-center mb-4">
                                   <h5 className="font-bold text-sm flex items-center gap-1.5"><Clock size={16}/>自動同期の設定</h5>
                                   <span className="text-xs font-bold text-[var(--text-main)] px-3 py-1.5 bg-[var(--card-bg)] rounded-lg border border-[var(--border)] shadow-sm">
-                                    現在：{autoSaveInterval === 0 ? 'オフ' : `${autoSaveInterval}分おき`}
+                                    現在：{autoSaveInterval === 0 ? 'オフ' : autoSaveInterval === -1 ? '操作ごとに即時保存' : `${autoSaveInterval}分おき`}
                                   </span>
                                 </div>
                                 <select value={autoSaveInterval} onChange={e => setAutoSaveInterval(Number(e.target.value))} className="w-full p-4 rounded-xl bg-[var(--card-bg)] border-2 border-[var(--border)] text-sm font-bold text-[var(--text-main)] focus:ring-4 focus:ring-[var(--primary)]/20 outline-none transition-all cursor-pointer shadow-sm">
                                    <option value={0} className="bg-[var(--bg-color)] text-[var(--text-main)]">オフに設定する</option>
+                                   <option value={-1} className="bg-[var(--bg-color)] text-[var(--text-main)] text-[var(--primary-dark)] font-bold">操作ごとに即時保存 (推奨)</option>
                                    <option value={10} className="bg-[var(--bg-color)] text-[var(--text-main)]">10分おきに自動保存</option>
                                    <option value={30} className="bg-[var(--bg-color)] text-[var(--text-main)]">30分おきに自動保存</option>
                                    <option value={60} className="bg-[var(--bg-color)] text-[var(--text-main)]">1時間おきに自動保存</option>
@@ -1435,7 +1499,7 @@
                             元のデータを読み込みますか？それとも新しい今のデータを保存しますか？
                           </p>
                           <div className="flex flex-col gap-3">
-                            <button onClick={() => { syncWithGas('load', gasOverwriteConfirm.pendingGasUrl); setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 }); }} className="w-full py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">既存データを読み込む</button>
+                            <button onClick={() => { syncWithGas('load', { targetGasUrl: gasOverwriteConfirm.pendingGasUrl }); setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 }); }} className="w-full py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">既存データを読み込む</button>
                             <button onClick={() => setGasOverwriteConfirm(prev => ({ ...prev, step: 2 }))} className="w-full py-4 rounded-2xl font-bold bg-[var(--card-bg)] border-2 border-[var(--primary)] text-[var(--primary-dark)] md:hover:bg-[var(--btn-bg)] transition-all shadow-sm">新規にデータを作成</button>
                             <button onClick={() => setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 })} className="w-full py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] md:hover:bg-[var(--sidebar-hover)] transition-all mt-2">キャンセル</button>
                           </div>
@@ -1449,7 +1513,7 @@
                             本当によろしいですか？
                           </p>
                           <div className="flex flex-col gap-3">
-                            <button onClick={() => { syncWithGas('save', gasOverwriteConfirm.pendingGasUrl, true); setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 }); }} className="w-full py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">新しく保存する</button>
+                            <button onClick={() => { syncWithGas('save', { targetGasUrl: gasOverwriteConfirm.pendingGasUrl, isFirstSync: true }); setGasOverwriteConfirm({ isOpen: false, pendingGasUrl: '', step: 1 }); }} className="w-full py-4 rounded-2xl font-bold bg-[var(--primary)] text-white shadow-lg md:hover:bg-[var(--primary-dark)] transition-all">新しく保存する</button>
                             <button onClick={() => setGasOverwriteConfirm(prev => ({ ...prev, step: 1 }))} className="w-full py-4 rounded-2xl font-bold bg-[var(--bg-color)] text-[var(--text-muted)] md:hover:bg-[var(--sidebar-hover)] transition-all">戻る</button>
                           </div>
                         </>
