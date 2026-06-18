@@ -82,6 +82,28 @@
         try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) {}
       };
 
+      // 確実な復旧: Service Workerを登録解除しキャッシュを全消去してから再読み込み。
+      // 万一壊れたキャッシュ/SWが原因で起動できなくなっても、これで素の
+      // ネットワーク読み込みに戻り復帰できる(その後SWは再登録される)。
+      function hardRecover() {
+        try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) {}
+        var reloaded = false;
+        var done = function () { if (reloaded) return; reloaded = true; location.reload(); };
+        var tasks = [];
+        if ('serviceWorker' in navigator) {
+          tasks.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          }).catch(function () {}));
+        }
+        if (window.caches && caches.keys) {
+          tasks.push(caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+          }).catch(function () {}));
+        }
+        Promise.all(tasks).then(done, done);
+        setTimeout(done, 1500); // 念のためタイムアウトでも実行
+      }
+
       // 一定時間描画されなければ失敗扱い
       setTimeout(handleFailure, FALLBACK_TIMEOUT);
 
@@ -95,16 +117,15 @@
 
       var retryBtn = document.getElementById('loadErrorRetry');
       if (retryBtn) {
-        retryBtn.addEventListener('click', function () {
-          try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) {}
-          location.reload();
-        });
+        // 手動リトライは確実復旧(SW登録解除+キャッシュ消去)を行う
+        retryBtn.addEventListener('click', hardRecover);
       }
 
-      // Service Worker 登録 (オフラインキャッシュ)
+      // Service Worker 登録 (オフラインキャッシュ)。
+      // updateViaCache:'none' で sw.js 自体は常に最新を取得し、修正版へ速やかに更新。
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('./sw.js').catch(function () {});
+          navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(function () {});
         });
       }
     })();
