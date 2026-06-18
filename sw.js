@@ -4,7 +4,7 @@
 //       オフライン/回線不安定時でも白画面にならず起動できるようにする。
 
 // キャッシュを作り直したいときはこのバージョンを上げる
-const CACHE = 'foglia-cache-v1';
+const CACHE = 'foglia-cache-v2';
 
 // アプリ本体(シェル)。インストール時に先読みしておく。
 const APP_SHELL = ['./', './index.html'];
@@ -17,6 +17,20 @@ const CDN_HOSTS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
 ];
+
+// リダイレクトされたレスポンスは、そのままキャッシュ/再生するとブラウザに
+// モジュールスクリプトとして拒否される ("a redirected response was used")。
+// esm.sh 等はリダイレクトを挟むため、リダイレクト痕跡を消したクリーンな
+// レスポンスに作り直してから扱う。
+async function cleanResponse(response) {
+  if (!response || !response.redirected) return response;
+  const body = await response.blob();
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
 
 self.addEventListener('install', (event) => {
   // すぐ有効化する
@@ -32,7 +46,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      // 古いキャッシュを掃除
+      // 古いキャッシュを掃除 (v1のリダイレクト混入キャッシュもここで破棄される)
       const keys = await caches.keys();
       await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
@@ -54,7 +68,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         try {
-          const fresh = await fetch(req);
+          const fresh = await cleanResponse(await fetch(req));
           const cache = await caches.open(CACHE);
           cache.put(req, fresh.clone());
           return fresh;
@@ -83,7 +97,8 @@ self.addEventListener('fetch', (event) => {
           return cached;
         }
         try {
-          const fresh = await fetch(req);
+          // リダイレクト痕跡を消してから返す&キャッシュする
+          const fresh = await cleanResponse(await fetch(req));
           // opaque(no-cors)含め、正常応答ならキャッシュ
           if (fresh && (fresh.ok || fresh.type === 'opaque')) {
             const cache = await caches.open(CACHE);
@@ -104,7 +119,7 @@ self.addEventListener('fetch', (event) => {
 
 async function updateCache(req) {
   try {
-    const fresh = await fetch(req);
+    const fresh = await cleanResponse(await fetch(req));
     if (fresh && (fresh.ok || fresh.type === 'opaque')) {
       const cache = await caches.open(CACHE);
       await cache.put(req, fresh.clone());
