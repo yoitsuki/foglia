@@ -40,6 +40,76 @@
   <!-- アプリが描画される領域 -->
   <div id="root"></div>
 
+  <!-- 読み込み失敗時のフォールバック表示 (CDN取得失敗で白画面のまま固まるのを防ぐ) -->
+  <div id="loadError" style="display:none; position:fixed; inset:0; z-index:9999; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:24px; text-align:center; background:#f0f9ff; color:#334155; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+    <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 22l10-10"/></svg>
+      <p style="margin:0; font-weight:700; font-size:16px;">読み込みに失敗しました</p>
+      <p style="margin:0; font-size:13px; color:#64748b;">通信状況をご確認のうえ、再読み込みしてください</p>
+    </div>
+    <button id="loadErrorRetry" style="padding:12px 28px; border:none; border-radius:9999px; background:#7dd3fc; color:#fff; font-weight:700; font-size:15px; box-shadow:0 4px 12px rgba(125,211,252,0.4); cursor:pointer;">再読み込み</button>
+  </div>
+
+  <!-- 起動監視 & Service Worker 登録 (Babel/モジュールに依存しない素のJS) -->
+  <script>
+    (function () {
+      var FALLBACK_TIMEOUT = 8000; // この時間内に描画されなければ失敗とみなす
+      var AUTO_RETRY_KEY = 'foglia_autoRetry';
+      var shown = false;
+
+      function appRendered() {
+        var root = document.getElementById('root');
+        return !!(root && root.children.length > 0);
+      }
+
+      function handleFailure() {
+        if (shown || appRendered()) return;
+        // まず1回だけ自動リロードを試す (一時的な回線不安定の大半はこれで復帰)
+        var tries = parseInt(sessionStorage.getItem(AUTO_RETRY_KEY) || '0', 10);
+        if (tries < 1) {
+          sessionStorage.setItem(AUTO_RETRY_KEY, String(tries + 1));
+          location.reload();
+          return;
+        }
+        // それでもダメなら手動再読み込みのUIを出す
+        shown = true;
+        var el = document.getElementById('loadError');
+        if (el) el.style.display = 'flex';
+      }
+
+      // アプリが正常に描画できたら呼ばれる (自動リトライ回数をリセット)
+      window.__fogliaRendered = function () {
+        try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) {}
+      };
+
+      // 一定時間描画されなければ失敗扱い
+      setTimeout(handleFailure, FALLBACK_TIMEOUT);
+
+      // CDNのscript/linkの読み込み失敗を即検知
+      window.addEventListener('error', function (e) {
+        var t = e && e.target;
+        if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+          setTimeout(handleFailure, 300);
+        }
+      }, true);
+
+      var retryBtn = document.getElementById('loadErrorRetry');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', function () {
+          try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) {}
+          location.reload();
+        });
+      }
+
+      // Service Worker 登録 (オフラインキャッシュ)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('./sw.js').catch(function () {});
+        });
+      }
+    })();
+  </script>
+
   <!-- Reactアプリの本体 -->
   <script type="text/babel" data-type="module">
     import React, { useState, useEffect, useRef } from 'react';
@@ -1712,6 +1782,8 @@
 
     const root = createRoot(document.getElementById('root'));
     root.render(<App />);
+    // 描画完了を起動監視スクリプトへ通知 (自動リトライ回数をリセットし、白画面フォールバックを抑止)
+    if (window.__fogliaRendered) window.__fogliaRendered();
   </script>
 </body>
 </html>
