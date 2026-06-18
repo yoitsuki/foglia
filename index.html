@@ -27,14 +27,16 @@
     {
       "imports": {
         "react": "https://esm.sh/react@18.2.0",
+        "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+        "react/jsx-dev-runtime": "https://esm.sh/react@18.2.0/jsx-dev-runtime",
         "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
         "lucide-react": "https://esm.sh/lucide-react@0.344.0"
       }
     }
   </script>
 
-  <!-- ブラウザ内でJSXを変換するためのBabel -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- ブラウザ内でJSXを変換するためのBabel (メジャー版を固定し挙動変化を防ぐ) -->
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 </head>
 <body class="overflow-hidden bg-[#f0f9ff]">
   <!-- アプリが描画される領域 -->
@@ -133,6 +135,9 @@
 
   <!-- Reactアプリの本体 -->
   <script type="text/babel" data-type="module">
+    /* @jsxRuntime classic */
+    // JSXを classic runtime (React.createElement) で変換させる。
+    // automatic runtime だと "react/jsx-runtime" の解決に失敗して起動できないため固定。
     import React, { useState, useEffect, useRef } from 'react';
     import { createRoot } from 'react-dom/client';
     import { 
